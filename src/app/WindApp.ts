@@ -6,6 +6,7 @@ import { buildGrass } from '../grass/tufts';
 import { FADE, type InkLine, StrokeLine } from '../interaction/StrokeLine';
 import { PointerSmoother } from '../interaction/stroke';
 import { placeCamera, screenRays } from '../scene/framing';
+import { MEADOW, type SceneProfile } from '../scene/profiles';
 import { buildGround } from '../scene/Ground';
 import { buildPainting, type Painting } from '../scene/paint';
 import { Terrain } from '../scene/terrain';
@@ -13,7 +14,7 @@ import { STRENGTH_GAIN, type Store } from '../state/store';
 import { DEFAULT_TUNING } from '../state/tuning';
 import { FIELD } from '../wind/grid';
 import type { Gust } from '../wind/gust';
-import { DEMO_TIMELINE, pattern, type PatternName, scaleStroke, type ScriptedStroke } from '../wind/patterns';
+import { DEMO_TIMELINE, pattern, type PatternName, type Point2, scaleStroke, type ScriptedStroke } from '../wind/patterns';
 import { frameMargin, type Tuning } from '../state/tuning';
 import { SIM_DT, WindSim } from '../wind/WindSim';
 import { WindTextures } from '../wind/WindTextures';
@@ -24,6 +25,8 @@ const BASE_TUFTS = 60_000;
 const FRAMES_PER_BUDGET_CHECK = 45;
 /** Half the world width across the middle of the 16:10 frame the patterns were composed in. */
 const LANDSCAPE_HALF_WIDTH = 15.5;
+/** Half the depth those patterns span, read as a height on the screen. */
+const PATTERN_HALF_DEPTH = 13;
 
 export interface AppOptions {
   seed: number;
@@ -33,6 +36,8 @@ export interface AppOptions {
   /** Disable adaptive quality (tests, benchmarks). */
   fixedQuality?: boolean;
   reducedMotion?: boolean;
+  /** Which version to build. Defaults to the meadow. */
+  profile?: SceneProfile;
 }
 
 interface ActiveLine extends InkLine {
@@ -81,6 +86,7 @@ export class WindApp {
   private appliedFramed: boolean | null = null;
   private contextLost = false;
   private readonly seed: number;
+  readonly profile: SceneProfile;
   private readonly opts: AppOptions;
   private readonly store: Store;
   readonly canvas: HTMLCanvasElement;
@@ -92,6 +98,7 @@ export class WindApp {
     this.store = store;
     this.opts = opts;
     this.seed = opts.seed;
+    this.profile = opts.profile ?? MEADOW;
     this.renderer = new WebGLRenderer({
       canvas,
       antialias: false,
@@ -106,13 +113,13 @@ export class WindApp {
       throw new Error('This browser cannot render to floating-point textures, which the wind needs.');
     }
 
-    this.terrain = new Terrain(this.seed);
-    this.painting = buildPainting(this.terrain, this.seed);
+    this.terrain = new Terrain(this.seed, this.profile.height, this.profile.marchRays);
+    this.painting = buildPainting(this.terrain, this.seed, { patches: this.profile.patches, sun: this.profile.sun, look: this.profile.paint });
     this.sim = new WindSim(this.seed);
         this.windTex = new WindTextures();
     this.sim.onStep = () => this.windTex.ingest(this.sim);
 
-    this.uniforms = makeGrassUniforms(new Vector4(FIELD.minX, FIELD.minZ, 1 / FIELD.width, 1 / FIELD.depth));
+    this.uniforms = makeGrassUniforms(new Vector4(FIELD.minX, FIELD.minZ, 1 / FIELD.width, 1 / FIELD.depth), this.profile.sun);
     this.uniforms.uBend.value = this.windTex.bend;
     this.uniforms.uFlow.value = this.windTex.flow;
     this.uniforms.uTime = this.timeUniform;
@@ -146,17 +153,18 @@ export class WindApp {
     if (this.opts.tufts) return this.opts.tufts;
     // the same coverage of the frame whatever its size: coverage depends on css area ÷ size of a tuft on screen
     const area = (this.cssW * this.cssH) / (1440 * 900);
-    const budget = BASE_TUFTS * Math.pow(area, 0.55);
+    const budget = BASE_TUFTS * this.profile.grass.density * Math.pow(area, 0.55);
     const coarse = matchMedia('(pointer: coarse)').matches;
     return Math.round(Math.min(budget * (coarse ? 0.75 : 1), 130_000));
   }
 
   rebuildGrass(): void {
-    placeCamera(this.camera, this.cssW / this.cssH);
-    const buffers = buildGrass(this.terrain, this.painting, screenRays(this.camera), { tufts: this.tuftBudget(), seed: this.seed });
+    placeCamera(this.camera, this.cssW / this.cssH, this.profile.framing);
+    const { refDist, sizeExponent, sizeScale, screenBias, combJitter } = this.profile.grass;
+    const buffers = buildGrass(this.terrain, this.painting, screenRays(this.camera), { tufts: this.tuftBudget(), seed: this.seed, refDist, sizeExponent, sizeScale, screenBias, combJitter });
     this.grass.setBuffers(buffers);
     this.grass.setDensity(this.density);
-    this.flowers.setBuffers(buildFlowers(this.terrain, screenRays(this.camera), { flowers: 620, seedHeads: 260, seed: this.seed }));
+    this.flowers.setBuffers(buildFlowers(this.terrain, screenRays(this.camera), { flowers: 620, seedHeads: 260, seed: this.seed, refDist, sizeExponent, scale: sizeScale }));
     this.builtAspect = this.cssW / this.cssH;
     this.uniforms.uCamPos.value.copy(this.camera.position);
   }
@@ -167,7 +175,7 @@ export class WindApp {
     this.cssH = Math.max(parent?.clientHeight ?? window.innerHeight, 1);
     this.dpr = Math.min(this.opts.dpr ?? Math.min(window.devicePixelRatio || 1, MAX_DPR), this.dprCap);
     this.applySize();
-    placeCamera(this.camera, this.cssW / this.cssH);
+    placeCamera(this.camera, this.cssW / this.cssH, this.profile.framing);
     this.uniforms.uCamPos.value.copy(this.camera.position);
     if (this.builtAspect && Math.abs(this.cssW / this.cssH - this.builtAspect) / this.builtAspect > 0.05) {
       clearTimeout(this.pendingRebuild);
@@ -300,13 +308,23 @@ export class WindApp {
 
   // ---- gestures ----
 
-  private worldAt(clientX: number, clientY: number): [number, number] | null {
+  private worldAt(clientX: number, clientY: number): [number, number, number] | null {
     const r = this.canvas.getBoundingClientRect();
-    const v = new Vector3(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1, 0.5);
+    return this.worldAtNdc(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+  }
+
+  /** The ground under a screen position, as x, z, and height. */
+  private worldAtNdc(ndcX: number, ndcY: number): [number, number, number] | null {
+    const v = new Vector3(ndcX, ndcY, 0.5);
     v.unproject(this.camera).sub(this.camera.position);
     const o = this.camera.position;
     const hit = this.terrain.raycast(o.x, o.y, o.z, v.x, v.y, v.z);
-    return hit ? [hit[0], hit[2]] : null;
+    return hit ? [hit[0], hit[2], hit[1]] : null;
+  }
+
+  /** Height to give the ink, only where hills can hide the ground under a straight stroke. */
+  private inkHeight(y: number): number | undefined {
+    return this.profile.marchRays ? y : undefined;
   }
 
   private gain(): number {
@@ -356,7 +374,7 @@ export class WindApp {
     this.smoother.push(e.clientX, e.clientY, 0);
     this.lastMoveT = e.timeStamp;
     this.activeGust = this.beginGust();
-    this.activeGust.addPoint(at[0], at[1], 0);
+    this.activeGust.addPoint(at[0], at[1], 0, this.inkHeight(at[2]));
     this.store.set({ hint: false });
   };
 
@@ -369,7 +387,7 @@ export class WindApp {
       this.lastMoveT = ev.timeStamp;
       const [sx, sy] = this.smoother.push(ev.clientX, ev.clientY, dt);
       const at = this.worldAt(sx, sy);
-      if (at) this.activeGust.addPoint(at[0], at[1], dt);
+      if (at) this.activeGust.addPoint(at[0], at[1], dt, this.inkHeight(at[2]));
     }
   };
 
@@ -389,10 +407,23 @@ export class WindApp {
   }
 
   play(name: PatternName, delaySteps = 0): void {
-    const fit = this.patternFit();
+    const fit = this.profile.screenPatterns ? 1 : this.patternFit();
     for (const stroke of pattern(name)) {
-      this.playStroke({ ...scaleStroke(stroke, fit), delay: (stroke.delay ?? 0) + delaySteps });
+      const fitted = this.profile.screenPatterns ? this.dropOntoHills(stroke) : scaleStroke(stroke, fit);
+      this.playStroke({ ...fitted, delay: (stroke.delay ?? 0) + delaySteps });
     }
+  }
+
+  /** Reads a gesture as a shape on the screen, then finds the ground under each point of it. */
+  private dropOntoHills(stroke: ScriptedStroke): ScriptedStroke {
+    const points: Point2[] = [];
+    for (const [x, z] of stroke.points) {
+      const ndcX = Math.max(-1.08, Math.min(1.08, x / LANDSCAPE_HALF_WIDTH));
+      const ndcY = Math.max(-0.96, Math.min(0.96, -z / PATTERN_HALF_DEPTH));
+      const hit = this.worldAtNdc(ndcX, ndcY);
+      if (hit) points.push(hit);
+    }
+    return { ...stroke, points };
   }
 
   /** Ready-made gestures were composed for a landscape frame; a narrow frame shrinks them to fit. */
@@ -435,7 +466,7 @@ export class WindApp {
       }
       s.gust ??= this.beginGust();
       const p = s.stroke.points[s.i++];
-      s.gust.addPoint(p[0], p[1], SIM_DT);
+      s.gust.addPoint(p[0], p[1], SIM_DT, p[2]);
       if (s.i >= s.stroke.points.length) {
         this.sim.end(s.gust);
         this.scripted.splice(k, 1);

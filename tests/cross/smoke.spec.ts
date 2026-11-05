@@ -1,9 +1,10 @@
 import { expect, test } from '@playwright/test';
 
-test('renders a meadow and a drawn gust moves real pixels', async ({ page, browserName }) => {
+for (const scene of ['meadow', 'hills']) {
+test(`${scene}: renders and a drawn gust moves real pixels`, async ({ page, browserName }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto('/?manual&fixed&dpr=1&tufts=8000');
+  await page.goto(`/?manual&fixed&dpr=1&tufts=8000&scene=${scene}`);
   await page.waitForFunction(() => window.__wind && !window.__wind.store.get().loading, null, { timeout: 90_000 });
   const stats = await page.evaluate(
     () =>
@@ -33,7 +34,7 @@ test('renders a meadow and a drawn gust moves real pixels', async ({ page, brows
               diff += Math.abs(a[i + 1] - b[i + 1]);
               n++;
             }
-            resolve({ r: r / n, g: g / n, diff: diff / n, bend: Math.hypot(...w.app.sim.bendAt(-6, 0)) });
+            resolve({ r: r / n, g: g / n, diff: diff / n, bend: Math.max(...w.app.sim.response.bend.map(Math.abs)) });
           });
         });
       }),
@@ -44,3 +45,4 @@ test('renders a meadow and a drawn gust moves real pixels', async ({ page, brows
   expect(stats.bend).toBeGreaterThan(0.05);
   expect(errors).toEqual([]);
 });
+}

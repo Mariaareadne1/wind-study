@@ -57,15 +57,15 @@ export class Gust {
     return 'stroke';
   }
 
-  addPoint(x: number, z: number, dt: number): void {
+  addPoint(x: number, z: number, dt: number, y?: number): void {
     const before = this.arcLength;
     if (this.points.length === 0) {
-      this.points.push({ x, z });
+      this.points.push(y === undefined ? { x, z } : { x, z, y });
       return;
     }
     const last = this.points[this.points.length - 1];
     const moved = Math.hypot(x - last.x, z - last.z);
-    resampleInto(this.points, x, z);
+    resampleInto(this.points, x, z, RESAMPLE_SPACING, y);
     if (dt > 0) {
       const instant = moved / dt;
       // rises quickly, falls slowly: a flick stays a flick

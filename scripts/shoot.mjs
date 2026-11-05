@@ -8,7 +8,7 @@ const page = await browser.newPage({ viewport: { width: +w, height: +h }, device
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (['error', 'warning'].includes(m.type())) errors.push(m.text()); });
-await page.goto(`${process.env.URL ?? 'http://localhost:5428/'}?manual&fixed`);
+await page.goto(`${process.env.URL ?? 'http://localhost:5428/'}?manual&fixed&${process.env.QUERY ?? ''}`);
 await page.waitForFunction(() => window.__wind && !window.__wind.store.get().loading, null, { timeout: 90000 });
 const t0 = Date.now();
 await page.evaluate((src) => {

@@ -159,14 +159,14 @@ export interface GrassUniforms {
   uFlutter: { value: number };
 }
 
-export function makeGrassUniforms(fieldRect: Vector4): GrassUniforms {
+export function makeGrassUniforms(fieldRect: Vector4, sun: readonly [number, number, number] = SUN): GrassUniforms {
   return {
     uBend: { value: null },
     uFlow: { value: null },
     uFieldRect: { value: fieldRect },
     uTime: { value: 0 },
     uCamPos: { value: new Vector3() },
-    uSun: { value: new Vector3(SUN[0], 0, SUN[2]).normalize() },
+    uSun: { value: new Vector3(sun[0], 0, sun[2]).normalize() },
     uWidthScale: { value: 1 },
     uBendGain: { value: 1 },
     uFlutter: { value: 1 },

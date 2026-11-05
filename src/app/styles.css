@@ -89,3 +89,9 @@ button:disabled { opacity: 0.42; cursor: default; }
 .check input { margin: 0; accent-color: var(--ink); }
 .tune .demo { display: block; margin: 6px 0 0 -8px; font-weight: 600; }
 .tune .close { display: block; margin-top: 0; }
+
+.scenes { display: flex; gap: 14px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid rgba(23, 41, 28, 0.18); font-size: 13px; }
+.scenes a { color: var(--ink-soft); text-decoration: none; padding: 4px 0; font-weight: 450; }
+.scenes a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.scenes a[aria-current='page'] { color: var(--ink); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.scenes a:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }

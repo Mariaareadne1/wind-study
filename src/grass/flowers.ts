@@ -34,6 +34,8 @@ export interface FlowerOptions {
   seed: number;
   /** Multiplies stem height and head size. */
   scale?: number;
+  refDist?: number | null;
+  sizeExponent?: number;
 }
 
 export interface FlowerBuffers {
@@ -60,7 +62,8 @@ export function buildFlowers(terrain: Terrain, rays: ScreenRays, opts: FlowerOpt
   const hueDrift = makeNoise(opts.seed + 402);
   const [c00, c10, c01, c11] = rays.corners;
   const [ox, oy, oz] = rays.origin;
-  const refDist = oy * 1.3;
+  const refDist = opts.refDist ?? oy * 1.3;
+  const sizeExponent = opts.sizeExponent ?? 0.75;
   const scale = opts.scale ?? 1;
 
   let i = 0;
@@ -85,7 +88,7 @@ export function buildFlowers(terrain: Terrain, rays: ScreenRays, opts: FlowerOpt
     if (rng() > keep) continue;
 
     const dist = Math.hypot(ox - x, oy - y, oz - z);
-    const distScale = Math.pow(dist / refDist, 0.75) * scale;
+    const distScale = Math.pow(dist / refDist, sizeExponent) * scale;
     root[i * 3] = x;
     root[i * 3 + 1] = y - 0.02;
     root[i * 3 + 2] = z;

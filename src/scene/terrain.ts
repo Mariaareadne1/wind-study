@@ -4,6 +4,10 @@ import { clamp, fbm, makeNoise } from './noise';
 export const WORLD = { minX: -42, maxX: 42, minZ: -34, maxZ: 24 } as const;
 
 const GRID = 3; // cells per world unit
+const MARCH_STEP = 0.35;
+const MARCH_MAX = 160;
+
+export type HeightFn = (n: (x: number, y: number) => number, x: number, z: number) => number;
 
 /**
  * Rolling meadow: a few broad, hand-placed swells plus very low-frequency
@@ -15,7 +19,10 @@ export class Terrain {
   readonly nz: number;
   readonly heights: Float32Array;
 
-  constructor(seed: number) {
+  private readonly march: boolean;
+
+  constructor(seed: number, heightFn: HeightFn = meadowHeight, march = false) {
+    this.march = march;
     const n = makeNoise(seed + 11);
     this.nx = Math.ceil((WORLD.maxX - WORLD.minX) * GRID) + 1;
     this.nz = Math.ceil((WORLD.maxZ - WORLD.minZ) * GRID) + 1;
@@ -24,7 +31,7 @@ export class Terrain {
       const z = WORLD.minZ + j / GRID;
       for (let i = 0; i < this.nx; i++) {
         const x = WORLD.minX + i / GRID;
-        this.heights[i + j * this.nx] = rawHeight(n, x, z);
+        this.heights[i + j * this.nx] = heightFn(n, x, z);
       }
     }
   }
@@ -57,6 +64,7 @@ export class Terrain {
    * fixed-point iteration from the y=0 hit converges in a few steps.
    */
   raycast(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number): [number, number, number] | null {
+    if (this.march) return this.marchRay(ox, oy, oz, dx, dy, dz);
     if (dy > -1e-4) return null;
     let t = -oy / dy;
     for (let i = 0; i < 6; i++) {
@@ -65,6 +73,45 @@ export class Terrain {
     }
     return [ox + dx * t, oy + dy * t, oz + dz * t];
   }
+
+  /**
+   * First surface along a ray, so a nearer hill correctly hides what's behind it.
+   * Returns null only if the ray leaves the painted world without touching land.
+   */
+  private marchRay(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number): [number, number, number] | null {
+    const l = Math.hypot(dx, dy, dz) || 1;
+    const ux = dx / l;
+    const uy = dy / l;
+    const uz = dz / l;
+    let prev = 0;
+    let t = MARCH_STEP;
+    while (t < MARCH_MAX) {
+      const x = ox + ux * t;
+      const z = oz + uz * t;
+      if (x < WORLD.minX || x > WORLD.maxX || z < WORLD.minZ || z > WORLD.maxZ) {
+        if (uz < 0 ? z < WORLD.minZ : z > WORLD.maxZ) return null;
+      } else if (oy + uy * t <= this.height(x, z)) {
+        // refine between the last point above ground and the first below
+        let a = prev;
+        let b = t;
+        for (let i = 0; i < 8; i++) {
+          const m = (a + b) / 2;
+          if (oy + uy * m <= this.height(ox + ux * m, oz + uz * m)) b = m;
+          else a = m;
+        }
+        return [ox + ux * b, oy + uy * b, oz + uz * b];
+      }
+      prev = t;
+      // steps can lengthen with distance: a far miss costs little on screen
+      t += MARCH_STEP * (1 + t * 0.02);
+    }
+    return null;
+  }
+}
+
+function smooth(a: number, b: number, x: number): number {
+  const t = clamp((x - a) / (b - a), 0, 1);
+  return t * t * (3 - 2 * t);
 }
 
 function bump(x: number, z: number, cx: number, cz: number, rx: number, rz: number, tilt: number): number {
@@ -75,7 +122,7 @@ function bump(x: number, z: number, cx: number, cz: number, rx: number, rz: numb
   return Math.exp(-((px * px) / (rx * rx) + (pz * pz) / (rz * rz)));
 }
 
-function rawHeight(n: (x: number, y: number) => number, x: number, z: number): number {
+export function meadowHeight(n: (x: number, y: number) => number, x: number, z: number): number {
   // a few big, deliberately placed forms; the valley runs lower-left to upper-right
   let h = 0;
   h += 3.2 * bump(x, z, -15, -6, 12, 6.5, 0.5);
@@ -84,5 +131,34 @@ function rawHeight(n: (x: number, y: number) => number, x: number, z: number): n
   h += 2.1 * bump(x, z, -8, 14, 11, 4.4, -0.25);
   h -= 1.4 * bump(x, z, 1, -3, 13, 3.6, 0.75);
   h += 0.75 * fbm(n, x * 0.04, z * 0.04, 2);
+  return h;
+}
+
+/** How much the land has climbed by a given depth, before any individual hill. */
+export function hillsClimb(z: number): number {
+  return 9.5 * smooth(16, -33, z);
+}
+
+/** One long hill: a crest wandering across the view, with saddles along it. */
+function ridge(n: (x: number, y: number) => number, x: number, z: number, z0: number, height: number, width: number, seed: number): number {
+  const crest = z0 + 3.2 * Math.sin(x * 0.085 + seed) + 1.6 * Math.sin(x * 0.19 + seed * 2.3);
+  const d = (z - crest) / width;
+  const along = 0.62 + 0.75 * (n(x * 0.045 + seed * 7, seed * 3) + 0.5);
+  return height * along * Math.exp(-d * d);
+}
+
+/**
+ * Rolling hills seen from low down: ridges stacked one behind another, each
+ * crest hiding the valley behind it, climbing until the land fills the frame.
+ */
+export function hillsHeight(n: (x: number, y: number) => number, x: number, z: number): number {
+  let h = hillsClimb(z);
+  h += ridge(n, x, z, 13, 1.7, 3.6, 0.4);
+  h += ridge(n, x, z, 5, 2.7, 3.0, 1.7);
+  h += ridge(n, x, z, -3, 3.1, 3.0, 3.1);
+  h += ridge(n, x, z, -11, 3.4, 3.0, 4.6);
+  h += ridge(n, x, z, -19, 3.7, 3.1, 2.2);
+  h += ridge(n, x, z, -28, 5.5, 3.8, 5.9);
+  h += 0.5 * fbm(n, x * 0.07, z * 0.07, 2);
   return h;
 }

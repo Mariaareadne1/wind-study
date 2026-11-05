@@ -4,6 +4,7 @@ import { loadStored, saveStored, tuningFromQuery } from '../state/tuning';
 import { Controls } from '../ui/Controls';
 import { WindApp } from './WindApp';
 import * as patterns from '../wind/patterns';
+import { profileFor } from '../scene/profiles';
 import { strandPoint, BEND_GLSL } from '../grass/bend';
 
 const lib = { ...patterns, strandPoint, BEND_GLSL };
@@ -45,6 +46,7 @@ export function App() {
       try {
         built = new WindApp(canvas, store, {
           seed: Number(q.get('seed')) || 7,
+          profile: profileFor(q.get('scene')),
           tufts: Number(q.get('tufts')) || undefined,
           dpr: Number(q.get('dpr')) || undefined,
           fixedQuality: q.has('fixed'),

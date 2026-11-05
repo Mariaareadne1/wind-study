@@ -23,6 +23,16 @@ export interface GrassOptions {
   seed: number;
   /** Extra margin around the frame in NDC, so bent strands and resizes never reveal an edge. */
   overscan?: number;
+  /** Distance at which strands are nominal size. Defaults to a rule based on camera height. */
+  refDist?: number | null;
+  /** How far strand size offsets perspective: 0 none, 1 fully. */
+  sizeExponent?: number;
+  /** Multiplies strand size everywhere. */
+  sizeScale?: number;
+  /** Below 1, packs tufts toward the top of the frame. */
+  screenBias?: number;
+  /** Reads the nap direction from up to this far away, so it never changes along a line. */
+  combJitter?: number;
 }
 
 /** Soft mounds of grass a little over a world unit across: the mid scale of the fluff. */
@@ -85,7 +95,10 @@ export function buildGrass(terrain: Terrain, paint: Painting, rays: ScreenRays, 
   const pigment2: number[] = [0, 0, 0, 0];
   const [c00, c10, c01, c11] = rays.corners;
   const [ox, oy, oz] = rays.origin;
-  const refDist = oy * 1.3;
+  const refDist = opts.refDist ?? oy * 1.3;
+  const sizeExponent = opts.sizeExponent ?? 0.75;
+  const sizeScale = opts.sizeScale ?? 1;
+  const screenBias = opts.screenBias ?? 1;
   const mound = new Float64Array(4);
 
   let s = 0;
@@ -94,7 +107,7 @@ export function buildGrass(terrain: Terrain, paint: Painting, rays: ScreenRays, 
     const v = ((i + 1) * R2_B + 0.5 * (rng() - 0.5) * 0.002) % 1;
     // through the frame, with overscan
     const sx = -overscan + u * (1 + 2 * overscan);
-    const sy = -overscan + v * (1 + 2 * overscan);
+    const sy = -overscan + (screenBias === 1 ? v : 1 - Math.pow(1 - v, 1 / screenBias)) * (1 + 2 * overscan);
     const dx = mix(mix(c00[0], c10[0], sx), mix(c01[0], c11[0], sx), sy);
     const dy = mix(mix(c00[1], c10[1], sx), mix(c01[1], c11[1], sx), sy);
     const dz = mix(mix(c00[2], c10[2], sx), mix(c01[2], c11[2], sx), sy);
@@ -103,7 +116,7 @@ export function buildGrass(terrain: Terrain, paint: Painting, rays: ScreenRays, 
     const cz = hit ? clamp(hit[2], WORLD.minZ, WORLD.maxZ) : 0;
     const dist = hit ? Math.hypot(ox - cx, oy - hit[1], oz - cz) : refDist;
     // keep the fineness of the fibres fairly even from near to far
-    const scale = Math.pow(dist / refDist, 0.75);
+    const scale = Math.pow(dist / refDist, sizeExponent) * sizeScale;
 
     nearestMound(cx, cz, mound);
     // 1 at the crown of a mound, 0 down in the creases between mounds
@@ -130,7 +143,10 @@ export function buildGrass(terrain: Terrain, paint: Painting, rays: ScreenRays, 
     const lengthDrift = 0.8 + 0.5 * smoothstep(-0.45, 0.45, fbm(heightNoise, cx * 0.5, cz * 0.5, 2));
     const baseH = (under ? 0.3 : wisp ? 0.84 : 0.54) * scale * patchTall * lengthDrift * mix(0.85, 1.15, rng()) * mix(0.78, 1.12, crown);
     const baseW = (under ? 0.092 : wisp ? 0.046 : 0.072) * scale;
-    const [combX, combZ] = sampleComb(paint, cx, cz);
+    const combJitter = opts.combJitter ?? 0;
+    const [combX, combZ] = combJitter > 0
+      ? sampleComb(paint, cx + (rng() - 0.5) * combJitter * 2, cz + (rng() - 0.5) * combJitter * 2)
+      : sampleComb(paint, cx, cz);
     const combLean = (under ? 0.16 : 0.26) * mix(0.6, 1.15, rng());
     // strands fall outward off the crown of their mound, which rounds its silhouette
     const moundFan = 0.5 * smoothstep(0.06, 0.8, mound[2]);

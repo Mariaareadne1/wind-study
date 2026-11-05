@@ -58,6 +58,30 @@ export const PATCHES: FieldPatch[] = [
   { x: 34, z: 17, sx: 1.2, sz: 1, rot: 0, color: 'spring', comb: 0.6, tall: 1 },
 ];
 
+/** The patchwork for the hills: fields lie across the slopes, gold on the upper faces. */
+export const HILL_PATCHES: FieldPatch[] = [
+  // foreground
+  { x: -10, z: 17, sx: 1.3, sz: 0.7, rot: 0.1, color: 'spring', comb: 0.4, tall: 1.1 },
+  { x: 11, z: 17, sx: 1.3, sz: 0.7, rot: -0.1, color: 'fresh', comb: 2.1, tall: 1.15 },
+  // near ridges
+  { x: -20, z: 6, sx: 1.1, sz: 0.45, rot: 0.15, color: 'fresh', comb: 1.7, tall: 1 },
+  { x: 0, z: 6, sx: 0.9, sz: 0.45, rot: -0.1, color: 'spring', comb: 0.6, tall: 1.05 },
+  { x: 20, z: 5, sx: 1.1, sz: 0.45, rot: -0.15, color: 'golden', comb: 1.2, tall: 1.15 },
+  { x: -24, z: -3, sx: 1.1, sz: 0.42, rot: 0.1, color: 'golden', comb: 0.3, tall: 1.15 },
+  { x: -3, z: -3, sx: 0.9, sz: 0.42, rot: 0.1, color: 'deep', comb: 1.9, tall: 1 },
+  { x: 17, z: -3, sx: 1, sz: 0.42, rot: 0.1, color: 'spring', comb: 0.8, tall: 1 },
+  // middle distance
+  { x: -18, z: -11, sx: 1.2, sz: 0.42, rot: 0.05, color: 'spring', comb: 1.3, tall: 1 },
+  { x: 4, z: -11, sx: 0.9, sz: 0.42, rot: -0.05, color: 'straw', comb: 2.2, tall: 1.15 },
+  { x: 26, z: -11, sx: 1.1, sz: 0.42, rot: 0.1, color: 'deep', comb: 0.5, tall: 1 },
+  { x: -26, z: -19, sx: 1.1, sz: 0.42, rot: 0.05, color: 'deep', comb: 1.0, tall: 1 },
+  { x: -3, z: -19, sx: 1, sz: 0.42, rot: 0.03, color: 'fresh', comb: 2.4, tall: 1 },
+  { x: 20, z: -19, sx: 1.1, sz: 0.42, rot: -0.03, color: 'golden', comb: 1.4, tall: 1.1 },
+  // the far ridge
+  { x: -18, z: -29, sx: 1.8, sz: 0.45, rot: 0.03, color: 'sage', comb: 1.0, tall: 1 },
+  { x: 18, z: -29, sx: 1.8, sz: 0.45, rot: -0.03, color: 'spring', comb: 2.4, tall: 1 },
+];
+
 /** Where the low sun sits. Shared with the grass shader so the bake and the fibres agree. */
 export const SUN = (() => {
   const v = [-0.62, 0.55, -0.56];
@@ -66,6 +90,26 @@ export const SUN = (() => {
 })();
 
 const TEXELS_PER_UNIT = 9;
+
+export interface PaintLook {
+  litGain: number;
+  airFrom: number;
+  airTo: number;
+  airAmount: number;
+  airColor: readonly [number, number, number];
+  castShadows: boolean;
+  valleyShade: number;
+  baseline?: (z: number) => number;
+  patchSharpness: number;
+}
+
+const DEFAULT_LOOK: PaintLook = { litGain: 3.6, airFrom: -8, airTo: -24, airAmount: 0.22, airColor: [0.84, 0.9, 0.76], castShadows: false, valleyShade: 0, patchSharpness: 2.2 };
+
+export interface PaintOptions {
+  patches?: readonly FieldPatch[];
+  sun?: readonly [number, number, number];
+  look?: Partial<PaintLook>;
+}
 
 export interface Painting {
   width: number;
@@ -102,7 +146,14 @@ export function sampleComb(p: Painting, x: number, z: number): [number, number] 
  * hills, slow pigment drift and directional dry-brush. Everything that wears
  * this colour (ground and every strand) reads it from here.
  */
-export function buildPainting(terrain: Terrain, seed: number): Painting {
+export function buildPainting(terrain: Terrain, seed: number, opts: PaintOptions = {}): Painting {
+  const sourcePatches = opts.patches ?? PATCHES;
+  const look = { ...DEFAULT_LOOK, ...opts.look };
+  const sun = opts.sun ?? SUN;
+  const sunLen = Math.hypot(sun[0], sun[2]);
+  const sunX = sun[0] / sunLen;
+  const sunZ = sun[2] / sunLen;
+  const climb = sun[1] / sunLen;
   const warpA = makeNoise(seed + 101);
   const warpB = makeNoise(seed + 102);
   const pigment = makeNoise(seed + 103);
@@ -111,7 +162,7 @@ export function buildPainting(terrain: Terrain, seed: number): Painting {
   const height = Math.ceil((WORLD.maxZ - WORLD.minZ) * TEXELS_PER_UNIT);
   const pixels = new Uint8Array(width * height * 4);
   const combs = new Uint8Array(width * height * 2);
-  const patches = PATCHES.map((p) => ({
+  const patches = sourcePatches.map((p) => ({
     ...p,
     rgb: PALETTE[p.color],
     c: Math.cos(p.rot),
@@ -129,6 +180,7 @@ export function buildPainting(terrain: Terrain, seed: number): Painting {
       const wx = x + 16 * warpA(x * 0.035, z * 0.035) + 6 * fbm(warpB, x * 0.11 + 5, z * 0.11, 3, 0.55) + 1.2 * warpA(x * 0.4, z * 0.4);
       const wz = z + 16 * warpB(x * 0.035 + 8, z * 0.035) + 6 * fbm(warpA, x * 0.11, z * 0.11 + 5, 3, 0.55) + 1.2 * warpB(x * 0.4, z * 0.4);
       let best = 1e9;
+      let second = 1e9;
       let bestIdx = 0;
       for (let k = 0; k < patches.length; k++) {
         const p = patches[k];
@@ -139,8 +191,11 @@ export function buildPainting(terrain: Terrain, seed: number): Painting {
         const d = Math.sqrt(u * u + v * v);
         weights[k] = d;
         if (d < best) {
+          second = best;
           best = d;
           bestIdx = k;
+        } else if (d < second) {
+          second = d;
         }
       }
       // feather: patches blend over a band a world unit or so wide
@@ -150,7 +205,7 @@ export function buildPainting(terrain: Terrain, seed: number): Painting {
       let tall = 0;
       let sum = 0;
       for (let k = 0; k < patches.length; k++) {
-        const w = Math.exp(-(weights[k] - best) * 2.2);
+        const w = Math.exp(-(weights[k] - best) * look.patchSharpness);
         if (w < 0.01) continue;
         const p = patches[k];
         r += p.rgb[0] * w;
@@ -175,14 +230,15 @@ export function buildPainting(terrain: Terrain, seed: number): Painting {
       const along = x * dom.cc + z * dom.cs;
       const across = -x * dom.cs + z * dom.cc;
       const drag = fbm(brush, along * 0.16 + bestIdx * 7, across * 1.15, 3);
-      const lift = drag * 0.11;
+      // where brush direction changes between soft-edged fields, the marks fade out rather than meet in a seam
+      const lift = drag * 0.11 * (look.patchSharpness < 1 ? smoothstep(0, 0.45, second - best) : 1);
       r += lift;
       g += lift;
       b += lift * 0.75;
 
       // tonal bands from the hills, softly posterised as a gouache painter would mass them
       const n = terrain.normal(x, z);
-      const lit = (n[0] * SUNH[0] + n[2] * SUNH[1]) * 3.6;
+      const lit = (n[0] * sunX + n[2] * sunZ) * look.litGain;
       const tone = softBands(clamp(0.5 + lit, 0, 1), 5, 0.55);
       const shade = smoothstep(0.55, 0.05, tone);
       const light = smoothstep(0.55, 1, tone);
@@ -194,11 +250,31 @@ export function buildPainting(terrain: Terrain, seed: number): Painting {
       g = mix(g, PALETTE.warm[1], light * 0.28);
       b = mix(b, PALETTE.warm[2], light * 0.2);
 
+      if (look.castShadows) {
+        // walk toward the sun: land rising above the ray puts this spot in a soft shadow
+        const ground = terrain.height(x, z);
+        let block = 0;
+        for (let d = 1.2; d < 26; d *= 1.32) {
+          const over = terrain.height(x + sunX * d, z + sunZ * d) - (ground + climb * d * 0.62);
+          if (over > block) block = over;
+        }
+        const cast = smoothstep(0, 1.5, block);
+        r *= 1 - cast * 0.26;
+        g *= 1 - cast * 0.12;
+        b *= 1 - cast * 0.03;
+      }
+      if (look.valleyShade > 0) {
+        const low = smoothstep(2.2, 0, terrain.height(x, z) - (look.baseline?.(z) ?? 0));
+        r *= 1 - low * look.valleyShade * 0.8;
+        g *= 1 - low * look.valleyShade * 0.35;
+        b *= 1 - low * look.valleyShade * 0.1;
+      }
+
       // a breath of aerial perspective toward the top of the picture
-      const air = smoothstep(-8, -24, z) * 0.22;
-      r = mix(r, 0.84, air);
-      g = mix(g, 0.9, air);
-      b = mix(b, 0.76, air);
+      const air = smoothstep(look.airFrom, look.airTo, z) * look.airAmount;
+      r = mix(r, look.airColor[0], air);
+      g = mix(g, look.airColor[1], air);
+      b = mix(b, look.airColor[2], air);
 
       const o = (i + j * width) * 4;
       pixels[o] = clamp(r, 0, 1) * 255;
@@ -212,11 +288,6 @@ export function buildPainting(terrain: Terrain, seed: number): Painting {
   }
   return { width, height, pixels, combs };
 }
-
-const SUNH = (() => {
-  const l = Math.hypot(SUN[0], SUN[2]);
-  return [SUN[0] / l, SUN[2] / l] as const;
-})();
 
 /** Posterise softly: `n` plateaus with rounded shoulders; softness 0 is hard, 1 is linear. */
 export function softBands(x: number, n: number, softness: number): number {

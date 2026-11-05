@@ -65,6 +65,16 @@ A strand is a constant-curvature arc. Its root is exactly anchored and its lengt
 
 The first "More" preset barely registered: only 14% more movement than default on real pixels. Grass near its bend limit can't lean much further, however hard it's pushed. So More now shows as reach instead: a stronger gust takes a wider swath and lingers longer. Measured across the whole frame at the same moment, the same stroke moves Less 1.8, Default 9.9 and More 16.9.
 
+## The hills version
+
+The first attempt was just a lower camera and bigger bumps. It looked like staring into one slope, because what makes land read as 3D is a nearer crest overlapping a farther, hazier one. That took long ridges stacked one behind another, a camera almost level with them, and land that climbs with distance so no sky appears.
+
+Strand size mattered as much as shape. When distant strands were as big on screen as near ones, the hills looked like small mounds right in front of you. True perspective made them large.
+
+The screen-distributed tufts paid off here without changes: only surfaces a ray can reach get grass, so hidden valleys cost nothing. Rays needed marching to find the first hill rather than the last. A stroke's ink keeps the height where the pointer really touched, so a line crossing a crest stays straight on screen. A test sweeping window shapes found sky showing at the top corners in portrait, which was fixed in the framing.
+
+The meadow's snapshots passed unchanged throughout, which is how it stayed exactly as it was.
+
 ## Performance
 
 Measured on an Apple M2 Pro (19-core GPU) in Chromium via Metal, at 2880×1800 with 360,000 strands and gusts blowing, system load around 7:
@@ -74,6 +84,8 @@ Measured on an Apple M2 Pro (19-core GPU) in Chromium via Metal, at 2880×1800 w
 | Frame cost with readback forcing the GPU to finish | 14.8 ms | 15.4 ms | 24.4 ms |
 | Same, at 1440×900 | 12.1 ms | 12.4 ms | 22.1 ms |
 | Headed window, `requestAnimationFrame` interval | 8.3 ms | 8.4 ms | 9.3 ms |
+
+The hills version draws 414,000 strands. With the machine busier (load around 11), it measured 19.8 ms median with readback, and a 16.6 ms median `requestAnimationFrame` interval with p90 17.4 ms, at 2880×1800.
 
 The wind simulation step costs about 3.3 ms on the main thread. All grass is one instanced draw call.
 

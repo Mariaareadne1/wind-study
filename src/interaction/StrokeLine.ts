@@ -99,7 +99,7 @@ export class StrokeLine {
       if (v + n * 2 + 4 > MAX_VERTS) break;
       ndc.length = 0;
       for (let i = 0; i < n; i++) {
-        world.set(pts[i].x, terrain.height(pts[i].x, pts[i].z), pts[i].z).project(camera);
+        world.set(pts[i].x, pts[i].y ?? terrain.height(pts[i].x, pts[i].z), pts[i].z).project(camera);
         ndc.push(world.x, world.y);
       }
       const total = (n - 1) * 0.32;

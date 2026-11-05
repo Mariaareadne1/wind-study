@@ -1,6 +1,8 @@
 export interface StrokePoint {
   x: number;
   z: number;
+  /** Height to draw the ink at. Unset means the ground beneath. */
+  y?: number;
 }
 
 /** Fine spacing of resampled stroke points, world units. */
@@ -33,9 +35,9 @@ export class PointerSmoother {
 }
 
 /** Appends points to a polyline at even arc-length spacing. Returns how many were added. */
-export function resampleInto(out: StrokePoint[], x: number, z: number, spacing = RESAMPLE_SPACING): number {
+export function resampleInto(out: StrokePoint[], x: number, z: number, spacing = RESAMPLE_SPACING, y?: number): number {
   if (out.length === 0) {
-    out.push({ x, z });
+    out.push(y === undefined ? { x, z } : { x, z, y });
     return 1;
   }
   let added = 0;
@@ -43,7 +45,10 @@ export function resampleInto(out: StrokePoint[], x: number, z: number, spacing =
   let d = Math.hypot(x - last.x, z - last.z);
   while (d >= spacing) {
     const t = spacing / d;
-    last = { x: last.x + (x - last.x) * t, z: last.z + (z - last.z) * t };
+    const next: StrokePoint = { x: last.x + (x - last.x) * t, z: last.z + (z - last.z) * t };
+    // straight in 3D is straight on screen, even when a stroke jumps from one hill to another
+    if (y !== undefined && last.y !== undefined) next.y = last.y + (y - last.y) * t;
+    last = next;
     out.push(last);
     added++;
     d = Math.hypot(x - last.x, z - last.z);

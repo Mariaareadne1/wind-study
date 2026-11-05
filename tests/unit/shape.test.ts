@@ -2,7 +2,9 @@ import { describe, expect, test } from 'vitest';
 import { buildGrass, STRANDS_PER_TUFT } from '../../src/grass/tufts';
 import { softLimit, strandPoint, THETA_MAX } from '../../src/grass/bend';
 import { buildPainting } from '../../src/scene/paint';
-import { Terrain, WORLD } from '../../src/scene/terrain';
+import { hillsHeight, Terrain, WORLD } from '../../src/scene/terrain';
+import { hillsFramingFor, placeCamera, screenRays } from '../../src/scene/framing';
+import { PerspectiveCamera } from 'three';
 import { resampleInto, totalTurning, PointerSmoother } from '../../src/interaction/stroke';
 import { pattern } from '../../src/wind/patterns';
 
@@ -134,5 +136,50 @@ describe('strokes', () => {
         }
       }
     }
+  });
+});
+
+describe('the hills', () => {
+  const terrain = new Terrain(7, hillsHeight, true);
+
+  test('a ray stops at the first hill, not the one behind it', () => {
+    // from low down, aimed so it would pass through the near ridge to reach land far behind
+    const o: [number, number, number] = [0, 12, 34];
+    const hit = terrain.raycast(o[0], o[1], o[2], 0, -0.16, -1)!;
+    expect(hit[1]).toBeCloseTo(terrain.height(hit[0], hit[2]), 2);
+    // nothing along the way sits above the ray: this really is the first contact
+    for (let t = 1; t < o[2] - hit[2] - 0.5; t += 0.5) {
+      const z = o[2] - t;
+      expect(o[1] - 0.16 * t).toBeGreaterThan(terrain.height(0, z));
+    }
+  });
+
+  test.each([0.46, 0.8, 1, 1.6, 1.78, 2.4, 3.2])('no sky at any window shape: aspect %s', (aspect) => {
+    const camera = new PerspectiveCamera();
+    placeCamera(camera, aspect, hillsFramingFor);
+    const rays = screenRays(camera);
+    const [c00, c10, c01, c11] = rays.corners;
+    const [ox, oy, oz] = rays.origin;
+    for (let j = 0; j <= 20; j++) {
+      for (let i = 0; i <= 20; i++) {
+        const u = i / 20;
+        const v = j / 20;
+        const at = (k: number) => c00[k] * (1 - u) * (1 - v) + c10[k] * u * (1 - v) + c01[k] * (1 - u) * v + c11[k] * u * v;
+        const hit = terrain.raycast(ox, oy, oz, at(0), at(1), at(2));
+        expect(hit, `ray ${u},${v}`).not.toBeNull();
+        expect(Math.abs(hit![0])).toBeLessThanOrEqual(WORLD.maxX);
+      }
+    }
+  });
+
+  test('the land keeps hills, with crests that hide what is behind them', () => {
+    let crests = 0;
+    for (let z = 20; z > -32; z -= 0.5) {
+      const a = terrain.height(0, z + 0.5);
+      const b = terrain.height(0, z);
+      const c = terrain.height(0, z - 0.5);
+      if (b > a && b > c) crests++;
+    }
+    expect(crests).toBeGreaterThanOrEqual(3);
   });
 });

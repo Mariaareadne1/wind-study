@@ -1,4 +1,5 @@
-export type Point2 = [number, number];
+/** x, z, and optionally the height to draw the ink at. */
+export type Point2 = [number, number, number?];
 export type PatternName = 'sweep' | 'spiral' | 'flick' | 'crossing' | 'wave' | 'heroCurve' | 'heroSweep';
 
 export interface ScriptedStroke {
@@ -50,7 +51,7 @@ export function spiralPoints(cx: number, cz: number, maxR: number, turns: number
 
 /** Shrink a stroke about the origin, so a ready-made gesture fits a narrow frame. */
 export function scaleStroke(stroke: ScriptedStroke, factor: number): ScriptedStroke {
-  return { ...stroke, points: stroke.points.map(([x, z]) => [x * factor, z * factor]) };
+  return { ...stroke, points: stroke.points.map(([x, z]) => [x * factor, z * factor] as Point2) };
 }
 
 export const DEMO_SECONDS = 20;

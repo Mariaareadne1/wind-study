@@ -4,7 +4,7 @@ import { writeFileSync } from 'node:fs';
 const [prefix = 'artifacts/p', steps = '70', pat = 'sweep'] = process.argv.slice(2);
 const browser = await chromium.launch({ args: ['--use-angle=metal', '--enable-gpu'] });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
-await page.goto(`${process.env.URL ?? 'http://localhost:5428/'}?manual&fixed`);
+await page.goto(`${process.env.URL ?? 'http://localhost:5428/'}?manual&fixed&${process.env.QUERY ?? ''}`);
 await page.waitForFunction(() => window.__wind && !window.__wind.store.get().loading, null, { timeout: 90000 });
 const grab = (n) => page.evaluate((n) => new Promise((res) => { const w = window.__wind; w.app.stepFrames(n); w.app.onceAfterFrame(() => res(w.app.canvas.toDataURL('image/jpeg', 0.95))); }), n);
 const save = (f, d) => writeFileSync(f, Buffer.from(d.split(',')[1], 'base64'));

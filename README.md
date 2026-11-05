@@ -10,6 +10,17 @@ Draw a line across a hand-painted meadow. The line fades, but its force stays: a
 | --- |
 | ![Rest vs gust](docs/media/rest-vs-gust.jpg) |
 
+## Two versions
+
+| | |
+| --- | --- |
+| **Meadow** (`/`) | The original: an elevated view of a painted patchwork |
+| **Hills** (`/?scene=hills`) | A low view across stacked ridges, each crest hiding the valley behind it, fading into haze. [Film](docs/media/hills.mp4) |
+
+![Hills mid-gust](docs/media/hills-gust.jpg)
+
+Switch in the Tune panel. Wind, grass, tuning, border and capture are shared; `src/scene/profiles.ts` holds what differs.
+
 ## Run it
 
 ```bash
@@ -47,6 +58,7 @@ Every setting is a multiplier on the design, so 100% is always the default. Sett
 | --- | --- |
 | `/?preset=less`, `/?preset=more` | The grass barely stirs, or is thrown about |
 | `/?lean=1.3&linger=2` | Individual settings: `force`, `lean`, `sway`, `linger`, `flutter`, `breeze` |
+| `/?scene=hills` | The hills version; combines with everything else here |
 | `/?frame=1` | Painted paper border. It appears in captures and recordings too. |
 | `/?demo` | Starts with the interface hidden, for screen recording. H brings it back. |
 
@@ -92,8 +104,8 @@ pointer ─► smoothing ─► Gust (path + travelling head)
 
 ```bash
 npm run typecheck && npm run lint
-npm test                                            # 44 numeric tests
-npm run test:e2e                                    # 40 tests in real Chromium, real GPU
+npm test                                            # 53 numeric tests
+npm run test:e2e                                    # 49 tests in real Chromium, real GPU
 E2E_PROD=1 npm run test:e2e                         # the same, against the production build
 npx playwright test -c playwright.cross.config.ts   # WebKit and Firefox smoke test
 ```

@@ -5,7 +5,7 @@ import { writeFileSync } from 'node:fs';
 const [out = 'artifacts/diff.png', pat = 'sweep', list = '40,80,140', dpr = '1'] = process.argv.slice(2);
 const browser = await chromium.launch({ args: ['--use-angle=metal', '--enable-gpu'] });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: +dpr });
-await page.goto(`${process.env.URL ?? 'http://localhost:5428/'}?manual&fixed`);
+await page.goto(`${process.env.URL ?? 'http://localhost:5428/'}?manual&fixed&${process.env.QUERY ?? ''}`);
 await page.waitForFunction(() => window.__wind && !window.__wind.store.get().loading, null, { timeout: 90000 });
 const res = await page.evaluate(async ({ pat, list }) => {
   const w = window.__wind;

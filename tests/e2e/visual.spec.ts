@@ -51,3 +51,24 @@ test('frame: phone framing', async ({ page }) => {
   );
   expect(Buffer.from(data.split(',')[1], 'base64')).toMatchSnapshot('phone.png', { maxDiffPixelRatio: 0.01, threshold: 0.12 });
 });
+
+for (const scene of [
+  { name: 'hills-rest', run: '', steps: 10 },
+  { name: 'hills-gust', run: `w.app.play('heroCurve');`, steps: 85 },
+]) {
+  test(`frame: ${scene.name}`, async ({ page }) => {
+    await open(page, 'manual&fixed&dpr=1&tufts=30000&scene=hills');
+    const data = await page.evaluate(
+      ({ run, steps }) =>
+        new Promise<string>((resolve) => {
+          const w = window.__wind!;
+          w.app.stepFrames(30);
+          if (run) new Function('w', run)(w);
+          w.app.stepFrames(steps);
+          w.app.onceAfterFrame(() => resolve(w.app.canvas.toDataURL('image/png')));
+        }),
+      scene,
+    );
+    expect(Buffer.from(data.split(',')[1], 'base64')).toMatchSnapshot(`${scene.name}.png`, { maxDiffPixelRatio: 0.01, threshold: 0.12 });
+  });
+}
