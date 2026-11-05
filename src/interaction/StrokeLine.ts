@@ -72,7 +72,7 @@ export class StrokeLine {
           float d = abs(vInk.x) * ${HALF_WIDTH.toFixed(2)};
           float i = floor(vInk.z);
           float grain = mix(hash(i), hash(i + 1.0), fract(vInk.z));
-          float core = 1.0 - smoothstep(0.55, 1.05, d);
+          float core = 1.0 - smoothstep(0.32, 0.82, d);
           float shadow = (1.0 - smoothstep(0.5, ${HALF_WIDTH.toFixed(2)}, d)) * 0.16;
           float a = core * (0.82 + 0.18 * grain);
           vec3 ink = mix(vec3(0.16, 0.24, 0.16), vec3(0.992, 0.976, 0.91), a / max(a + shadow * (1.0 - a), 1e-3));

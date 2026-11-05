@@ -137,7 +137,7 @@ export class Gust {
   private pushAir(field: WindField, dt: number): void {
     const trail = this.trail();
     const radius = this.radius();
-    const force = this.force() * ACCEL * clamp(this.travel / HEAD_REF, 0.12, 1.15);
+    const force = this.force() * ACCEL * clamp(this.travel / HEAD_REF, 0.12, 1.7);
     const n = this.points.length;
     const arc = this.arcLength;
     const every = 2; // every other sample is plenty: the splats overlap broadly

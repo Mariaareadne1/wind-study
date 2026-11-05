@@ -74,7 +74,7 @@ export class WindSim {
   }
 
   /** Stop the latest gust that is still blowing and still the air along its path. */
-  undoLatest(): boolean {
+  undoLatest(): Gust | null {
     for (let i = this.gusts.length - 1; i >= 0; i--) {
       const g = this.gusts[i];
       if (g.finished) continue;
@@ -84,9 +84,9 @@ export class WindSim {
       if (g.vortex) this.field.splatQuench(g.vortex.x, g.vortex.z, 4.5, g.vortex.radius * 1.8);
       g.silence();
       this.gusts.splice(i, 1);
-      return true;
+      return g;
     }
-    return false;
+    return null;
   }
 
   /** Remove every gust; the ambient breeze stays. Grass settles on its own springs. */

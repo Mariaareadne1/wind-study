@@ -63,17 +63,34 @@ export function Controls({ store, app }: Props) {
       return;
     }
     try {
-      recording.current = startRecording(app.canvas);
+      const active = startRecording(app.canvas);
+      recording.current = active;
       store.set({ recording: true });
+      // a recorder can fail on its own: the button must not stay on "Stop recording"
+      active.done.catch((e: unknown) => {
+        if (recording.current !== active) return;
+        recording.current = null;
+        store.set({ recording: false });
+        toast(e instanceof Error ? e.message : 'Recording failed.');
+      });
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Recording failed.');
     }
   }, [app, store, toast]);
 
+  useEffect(
+    () => () => {
+      clearTimeout(toastTimer.current);
+      recording.current?.stop();
+      recording.current = null;
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!app) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
       const st = store.get();
       const target = e.target as HTMLElement;
       if (e.key === 'Escape') {

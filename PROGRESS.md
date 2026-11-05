@@ -3,16 +3,21 @@
 Resume with: `npm install`, `npm run dev` (port 5428), `npm test`, `npm run test:e2e`.
 
 ## Status
-- [x] M0 setup, private repo `Mariaareadne1/wind-study`
-- [x] M1 painted terrain, dense fluffy grass
-- [x] M2 strand deformation (constant-curvature arc)
-- [x] M3 shared spatial wind field (fluid + springs on a grid, B-spline upsampling)
-- [x] M4 draw-to-wind gestures
-- [ ] M5 motion refinement from footage
-- [x] M6 flowers, seed heads, cloud shadows (first pass)
-- [x] M7 UI (first pass, needs browser tests)
-- [ ] M8 capture verification, hero demo
-- [ ] M9 performance and cross-browser QA
-- [ ] M10 case study
+All milestones M0–M10 complete. Repo: `Mariaareadne1/wind-study` (private), branch `main`. Not deployed.
 
-See git log for commit history. No reference images were available on disk; art direction follows the written brief.
+## Test results (2026-11-05)
+- Unit: 34 passing
+- E2E Chromium (real GPU): 32 passing, including 9 visual snapshots
+- E2E against the production build: 23 functional tests passing (visual snapshots not run there)
+- WebKit and Firefox smoke test: passing
+
+## Known limitations
+- Not measured on a real phone or an integrated GPU; touch tested in emulation only.
+- WebKit and Firefox have a smoke test only, in Playwright's builds, not Safari itself.
+- Motion was judged from frame sequences, motion maps and metrics. A person should judge the feel live.
+- Resizing past a 5% aspect change regenerates strands: a brief hitch and a change of fine detail.
+- Reference images were never available.
+- Sim runs on the main thread (about 3.3 ms per step on an M2 Pro).
+
+## Next steps
+Live feel review, a real-phone test, then deploy if wanted (`npx vercel --prod`).

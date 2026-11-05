@@ -29,6 +29,10 @@ const stamp = (): string => new Date().toISOString().slice(0, 19).replace(/[:T]/
 /** A clean still of the painting: the drawing buffer as it was just rendered, with no interface in it. */
 export function captureStill(app: WindApp): Promise<Blob> {
   return new Promise((resolve, reject) => {
+    if (!app.canDraw) {
+      reject(new Error('The picture is not available right now.'));
+      return;
+    }
     app.onceAfterFrame(() => {
       app.canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Could not read the canvas.'))), 'image/png');
     });
@@ -40,6 +44,7 @@ export async function saveStill(app: WindApp): Promise<void> {
 }
 
 export interface ActiveRecording {
+  /** Safe to call at any time, including after the recorder has failed. */
   stop: () => void;
   done: Promise<{ blob: Blob; extension: 'mp4' | 'webm' }>;
 }
@@ -58,7 +63,10 @@ export function startRecording(canvas: HTMLCanvasElement): ActiveRecording {
     if (e.data.size > 0) chunks.push(e.data);
   };
   const done = new Promise<{ blob: Blob; extension: 'mp4' | 'webm' }>((resolve, reject) => {
-    recorder.onerror = () => reject(new Error('Recording failed.'));
+    recorder.onerror = () => {
+      stream.getTracks().forEach((t) => t.stop());
+      reject(new Error('Recording failed.'));
+    };
     recorder.onstop = () => {
       stream.getTracks().forEach((t) => t.stop());
       const blob = new Blob(chunks, { type: type.split(';')[0] });
@@ -67,7 +75,12 @@ export function startRecording(canvas: HTMLCanvasElement): ActiveRecording {
     };
   });
   recorder.start(250);
-  return { stop: () => recorder.stop(), done };
+  return {
+    stop: () => {
+      if (recorder.state !== 'inactive') recorder.stop();
+    },
+    done,
+  };
 }
 
 export function saveRecording(blob: Blob, extension: string): void {

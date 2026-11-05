@@ -58,6 +58,8 @@ export class WindApp {
   private cssW = 1;
   private cssH = 1;
   private dpr = 1;
+  /** Ceiling set by adaptive quality; survives resizes. */
+  private dprCap = Infinity;
   private builtAspect = 0;
   private density = 1;
   private frames = 0;
@@ -76,7 +78,7 @@ export class WindApp {
   private readonly store: Store;
   readonly canvas: HTMLCanvasElement;
   /** Set for a frame by capture so it can read back right after drawing. */
-  private afterFrame: (() => void) | null = null;
+  private readonly afterFrame: (() => void)[] = [];
 
   constructor(canvas: HTMLCanvasElement, store: Store, opts: AppOptions) {
     this.canvas = canvas;
@@ -155,7 +157,7 @@ export class WindApp {
     const parent = this.canvas.parentElement;
     this.cssW = Math.max(parent?.clientWidth ?? window.innerWidth, 1);
     this.cssH = Math.max(parent?.clientHeight ?? window.innerHeight, 1);
-    this.dpr = this.opts.dpr ?? Math.min(window.devicePixelRatio || 1, MAX_DPR);
+    this.dpr = Math.min(this.opts.dpr ?? Math.min(window.devicePixelRatio || 1, MAX_DPR), this.dprCap);
     this.applySize();
     placeCamera(this.camera, this.cssW / this.cssH);
     this.uniforms.uCamPos.value.copy(this.camera.position);
@@ -241,10 +243,9 @@ export class WindApp {
     this.line.render(renderer);
     renderer.autoClear = true;
     this.frames++;
-    if (this.afterFrame) {
-      const f = this.afterFrame;
-      this.afterFrame = null;
-      f();
+    if (this.afterFrame.length > 0) {
+      const pending = this.afterFrame.splice(0);
+      for (const f of pending) f();
     }
   }
 
@@ -256,10 +257,12 @@ export class WindApp {
     const avg = this.spentMs / FRAMES_PER_BUDGET_CHECK;
     this.spentMs = 0;
     this.store.set({ fps: Math.round(1000 / avg) });
-    if (document.hidden || this.frames < FRAMES_PER_BUDGET_CHECK * 2) return;
+    // changing the canvas size would break a recording in progress
+    if (document.hidden || this.frames < FRAMES_PER_BUDGET_CHECK * 2 || this.store.get().recording) return;
     if (avg > 26) {
       if (this.dpr > 1.25) {
         this.dpr = Math.max(1.25, this.dpr * 0.84);
+        this.dprCap = this.dpr;
         this.applySize();
       } else if (this.density > 0.45) {
         this.density *= 0.82;
@@ -272,8 +275,13 @@ export class WindApp {
 
   /** Runs a callback right after the next frame, while the drawing buffer is still valid. */
   onceAfterFrame(cb: () => void): void {
-    this.afterFrame = cb;
+    this.afterFrame.push(cb);
     if (!this.running) this.renderFrame();
+  }
+
+  /** False when no frame can be drawn: the graphics context is gone, or the app was disposed. */
+  get canDraw(): boolean {
+    return !this.contextLost && !this.disposed;
   }
 
   // ---- gestures ----
@@ -375,14 +383,19 @@ export class WindApp {
   }
 
   undo(): boolean {
-    const g = this.sim.gusts[this.sim.gusts.length - 1];
-    const done = this.sim.undoLatest();
-    if (done && g) {
-      const l = this.lines.find((x) => x.gust === g);
-      if (l) l.fading = Math.max(l.fading, FADE * 0.7);
+    const g = this.sim.undoLatest();
+    if (!g) return false;
+    const l = this.lines.find((x) => x.gust === g);
+    if (l) l.fading = Math.max(l.fading, FADE * 0.7);
+    // undoing the stroke still being drawn ends that drag; a pointer-up later does nothing
+    if (g === this.activeGust) {
+      this.activeGust = null;
+      this.pointerId = null;
     }
+    this.scripted.splice(0, this.scripted.length, ...this.scripted.filter((s) => s.gust !== g));
+    this.showWhilePaused();
     this.store.set({ active: this.sim.activeGusts });
-    return done;
+    return true;
   }
 
   clearWind(): void {
@@ -391,7 +404,13 @@ export class WindApp {
     this.pointerId = null;
     this.sim.clear();
     for (const l of this.lines) l.fading = Math.max(l.fading, FADE * 0.7);
+    this.showWhilePaused();
     this.store.set({ active: 0 });
+  }
+
+  /** The wind textures refresh on sim steps, so a change made during a pause needs one to show. */
+  private showWhilePaused(): void {
+    if (this.sim.paused) this.sim.step();
   }
 
   resetScene(): void {

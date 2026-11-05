@@ -56,7 +56,7 @@ export function pattern(name: PatternName): ScriptedStroke[] {
     case 'heroCurve':
       return [{ points: curve([-19, 8], [-9, -6], [4, 8], [15, -6], 110) }];
     case 'heroSweep':
-      return [{ points: curve([-27, -8], [-9, 8], [9, -10], [29, 7], 86) }];
+      return [{ points: curve([-27, -8], [-9, 8], [9, -10], [29, 7], 104) }];
     case 'wave':
       return [{ points: curve([-26, -4], [-10, 9], [8, -9], [27, 3], 66) }];
     case 'spiral':

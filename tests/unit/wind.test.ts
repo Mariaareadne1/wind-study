@@ -299,7 +299,7 @@ describe('sim clock', () => {
     const first = draw(s, line(-30, 8, 6, 8, 110));
     const second = draw(s, line(-6, -6, 12, -6, 12));
     expect(first.finished).toBe(false);
-    expect(s.undoLatest()).toBe(true);
+    expect(s.undoLatest()).toBe(second);
     expect(s.gusts).not.toContain(second);
     expect(s.gusts).toContain(first);
     const control = quietSim();
