@@ -1,10 +1,10 @@
-import { DataTexture, LinearFilter, Mesh, PlaneGeometry, RGBAFormat, ShaderMaterial, UnsignedByteType, type IUniform } from 'three';
-import { CLOUD_GLSL } from '../grass/clouds';
+import { DataTexture, LinearFilter, Mesh, PlaneGeometry, RGBAFormat, ShaderMaterial, type Texture, UnsignedByteType, type IUniform, type Vector4 } from 'three';
+import { CLOUD_SHADE_GLSL } from '../grass/clouds';
 import type { Painting } from './paint';
 import { WORLD, type Terrain } from './terrain';
 
 /** The painted earth under the grass: the same pigment, dropped into its own shade. */
-export function buildGround(terrain: Terrain, paint: Painting, time: IUniform<number>): { mesh: Mesh; dispose: () => void } {
+export function buildGround(terrain: Terrain, paint: Painting, flow: IUniform<Texture | null>, fieldRect: IUniform<Vector4>): { mesh: Mesh; dispose: () => void } {
   const w = WORLD.maxX - WORLD.minX;
   const d = WORLD.maxZ - WORLD.minZ;
   const geo = new PlaneGeometry(w, d, 252, 174);
@@ -19,7 +19,7 @@ export function buildGround(terrain: Terrain, paint: Painting, time: IUniform<nu
   tex.needsUpdate = true;
   const mat = new ShaderMaterial({
     glslVersion: '300 es' as never,
-    uniforms: { uPaint: { value: tex }, uTime: time },
+    uniforms: { uPaint: { value: tex }, uFlow: flow, uFieldRect: fieldRect },
     vertexShader: /* glsl */ `
       out vec2 vXZ;
       void main() {
@@ -30,18 +30,21 @@ export function buildGround(terrain: Terrain, paint: Painting, time: IUniform<nu
       precision highp float;
       in vec2 vXZ;
       uniform sampler2D uPaint;
-      uniform float uTime;
+      uniform sampler2D uFlow;
+      uniform vec4 uFieldRect;
       out vec4 outColor;
-      ${CLOUD_GLSL}
+      ${CLOUD_SHADE_GLSL}
       void main() {
         vec2 uv = (vXZ - vec2(${WORLD.minX.toFixed(1)}, ${WORLD.minZ.toFixed(1)})) / vec2(${w.toFixed(1)}, ${d.toFixed(1)});
         vec3 c = texture(uPaint, uv).rgb;
         c = c * 0.62 + vec3(0.02, 0.05, 0.05);
-        outColor = vec4(applyCloudShadow(c, vXZ, uTime), 1.0);
+        outColor = vec4(shadeCloud(c, texture(uFlow, (vXZ - uFieldRect.xy) * uFieldRect.zw).a), 1.0);
       }`,
   });
   const mesh = new Mesh(geo, mat);
   mesh.frustumCulled = false;
+  // drawn after the grass: depth testing then skips the many pixels it covers
+  mesh.renderOrder = 5;
   return {
     mesh,
     dispose: () => {

@@ -228,5 +228,5 @@ export class Gust {
 const ACCEL = 30;
 /** Head speed at which a path gets its nominal push. */
 const HEAD_REF = 20;
-const VORTEX_SPIN = 60;
-const VORTEX_LIFE = 2.6;
+const VORTEX_SPIN = 30;
+const VORTEX_LIFE = 2.0;

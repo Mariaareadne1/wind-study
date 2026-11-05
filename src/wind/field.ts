@@ -12,7 +12,7 @@ const JACOBI_ITERATIONS = 8;
  * air back in two big lobes beside a stroke, stronger than the stroke itself;
  * a partial one keeps a soft curl at the edges and lets the gust stay a ribbon.
  */
-const PROJECTION = 0.24;
+const PROJECTION = 0.16;
 /** Wind faster than this is softly compressed, so nothing can blow up. */
 export const MAX_WIND = 34;
 

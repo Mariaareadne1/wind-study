@@ -16,7 +16,8 @@ import {
   WebGLRenderTarget,
   type WebGLRenderer,
 } from 'three';
-import { NX, NZ } from './grid';
+import { CLOUD_GLSL } from '../grass/clouds';
+import { FIELD, NX, NZ } from './grid';
 import type { WindSim } from './WindSim';
 
 const UPSCALE = 2;
@@ -37,6 +38,8 @@ out vec4 outColor;
 uniform highp sampler2D uA;
 uniform highp sampler2D uB;
 uniform float uAlpha;
+uniform float uCloudTime; // negative: leave alpha alone
+${CLOUD_GLSL}
 vec4 spline(highp sampler2D tex, vec2 uv) {
   ivec2 size = textureSize(tex, 0);
   vec2 p = uv * vec2(size) - 0.5;
@@ -62,6 +65,10 @@ vec4 spline(highp sampler2D tex, vec2 uv) {
 }
 void main() {
   outColor = mix(spline(uA, vUv), spline(uB, vUv), uAlpha);
+  if (uCloudTime >= 0.0) {
+    vec2 xz = vec2(${FIELD.minX.toFixed(1)}, ${FIELD.minZ.toFixed(1)}) + vUv * vec2(${FIELD.width.toFixed(1)}, ${FIELD.depth.toFixed(1)});
+    outColor.a = cloudAmount(xz, uCloudTime);
+  }
 }`;
 
 function makeRaw(): DataTexture {
@@ -111,7 +118,7 @@ export class WindTextures {
       glslVersion: GLSL3,
       vertexShader: VERT,
       fragmentShader: FRAG,
-      uniforms: { uA: { value: null }, uB: { value: null }, uAlpha: { value: 1 } },
+      uniforms: { uA: { value: null }, uB: { value: null }, uAlpha: { value: 1 }, uCloudTime: { value: -1 } },
       depthTest: false,
       depthWrite: false,
     });
@@ -148,16 +155,18 @@ export class WindTextures {
   }
 
   /** Resample at the current interpolation alpha. */
-  render(renderer: WebGLRenderer, alpha: number): void {
+  render(renderer: WebGLRenderer, alpha: number, time: number): void {
     const u = this.material.uniforms;
     const prev = 1 - this.current;
     u.uAlpha.value = alpha;
+    u.uCloudTime.value = -1;
     u.uA.value = this.bendRaw[prev];
     u.uB.value = this.bendRaw[this.current];
     renderer.setRenderTarget(this.bendTarget);
     renderer.render(this.scene, this.camera);
     u.uA.value = this.flowRaw[prev];
     u.uB.value = this.flowRaw[this.current];
+    u.uCloudTime.value = time;
     renderer.setRenderTarget(this.flowTarget);
     renderer.render(this.scene, this.camera);
     renderer.setRenderTarget(null);

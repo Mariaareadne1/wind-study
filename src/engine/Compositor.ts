@@ -1,16 +1,51 @@
 import {
+  DataTexture,
   GLSL3,
+  LinearFilter,
   Mesh,
   OrthographicCamera,
   PlaneGeometry,
   RawShaderMaterial,
+  RepeatWrapping,
+  RGBAFormat,
   Scene,
   UnsignedByteType,
   WebGLRenderTarget,
   type WebGLRenderer,
 } from 'three';
+import { makeNoise } from '../scene/noise';
 
 const SAMPLES = 4;
+const PAPER_SIZE = 256;
+
+/** A small tiling sheet of paper: fine tooth in red, soft mottling in green. Baked once. */
+function makePaper(): DataTexture {
+  const noise = makeNoise(9101);
+  const data = new Uint8Array(PAPER_SIZE * PAPER_SIZE * 4);
+  // tile by sampling the torus of the noise lattice: 256 is its own period
+  const f1 = 64 / PAPER_SIZE;
+  const f2 = 21 / PAPER_SIZE;
+  const f3 = 7 / PAPER_SIZE;
+  const f4 = 3 / PAPER_SIZE;
+  for (let y = 0; y < PAPER_SIZE; y++) {
+    for (let x = 0; x < PAPER_SIZE; x++) {
+      const tooth = noise(x * 0.5 * f1 * 8, y * 0.5 * f1 * 8) * 0.6 + noise(x * f2, y * f2) * 0.4;
+      const mottle = noise(x * f3, y * f3) * 0.6 + noise(x * f4, y * f4) * 0.4;
+      const i = (x + y * PAPER_SIZE) * 4;
+      data[i] = Math.min(255, Math.max(0, (tooth + 0.5) * 255));
+      data[i + 1] = Math.min(255, Math.max(0, (mottle + 0.5) * 255));
+      data[i + 2] = 128;
+      data[i + 3] = 255;
+    }
+  }
+  const t = new DataTexture(data, PAPER_SIZE, PAPER_SIZE, RGBAFormat, UnsignedByteType);
+  t.wrapS = RepeatWrapping;
+  t.wrapT = RepeatWrapping;
+  t.minFilter = LinearFilter;
+  t.magFilter = LinearFilter;
+  t.needsUpdate = true;
+  return t;
+}
 
 /**
  * Renders the meadow into a multisampled target (alpha-to-coverage needs it) and
@@ -35,7 +70,7 @@ export class Compositor {
       glslVersion: GLSL3,
       depthTest: false,
       depthWrite: false,
-      uniforms: { uScene: { value: this.target.texture }, uPixel: { value: [1 / 4, 1 / 4] }, uDpr: { value: 1 } },
+      uniforms: { uScene: { value: this.target.texture }, uPixel: { value: [1 / 4, 1 / 4] }, uDpr: { value: 1 }, uPaper: { value: makePaper() } },
       vertexShader: /* glsl */ `
         in vec3 position;
         out vec2 vUv;
@@ -47,36 +82,25 @@ export class Compositor {
         uniform sampler2D uScene;
         uniform vec2 uPixel;
         uniform float uDpr;
-        float hash(vec2 p) {
-          p = fract(p * vec2(123.34, 456.21));
-          p += dot(p, p + 45.32);
-          return fract(p.x * p.y);
-        }
-        float vnoise(vec2 p) {
-          vec2 i = floor(p), f = fract(p);
-          f = f * f * (3.0 - 2.0 * f);
-          return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
-        }
+        uniform sampler2D uPaper;
         void main() {
           // the faintest softening: fibres should feel soft, never crunchy
           vec2 px = uPixel * max(uDpr * 0.6, 0.75);
-          vec3 c = texture(uScene, vUv).rgb * 0.56;
-          c += texture(uScene, vUv + vec2(px.x, 0.0)).rgb * 0.11;
-          c += texture(uScene, vUv - vec2(px.x, 0.0)).rgb * 0.11;
-          c += texture(uScene, vUv + vec2(0.0, px.y)).rgb * 0.11;
-          c += texture(uScene, vUv - vec2(0.0, px.y)).rgb * 0.11;
+          vec3 c = texture(uScene, vUv).rgb * 0.6;
+          c += texture(uScene, vUv + px * vec2(0.7, 0.4)).rgb * 0.2;
+          c += texture(uScene, vUv - px * vec2(0.7, 0.4)).rgb * 0.2;
 
           vec2 frag = gl_FragCoord.xy / uDpr;
           // stationary paper: tooth at two scales and slow pigment mottling
-          float tooth = vnoise(frag * 0.9) * 0.6 + vnoise(frag * 0.31) * 0.4;
-          float mottle = vnoise(frag * 0.012) * 0.6 + vnoise(frag * 0.037) * 0.4;
+          float tooth = texture(uPaper, frag * 0.0041).r;
+          float mottle = texture(uPaper, frag * 0.000173 + 0.37).g * 0.6 + texture(uPaper, frag * 0.000061).g * 0.4;
           c *= 1.0 + (tooth - 0.5) * 0.045;
           c *= 1.0 + (mottle - 0.5) * 0.05;
           // lift the darkest values a touch toward warm paper: gouache has no true black
           c = mix(vec3(0.075, 0.09, 0.07), vec3(1.0), c);
           vec2 q = vUv - 0.5;
           c *= 1.0 - dot(q, q) * 0.11;
-          c += (hash(gl_FragCoord.xy) - 0.5) / 255.0;
+          c += (tooth - 0.5) * 1.5 / 255.0;
           outColor = vec4(c, 1.0);
         }`,
     });
@@ -98,6 +122,7 @@ export class Compositor {
 
   dispose(): void {
     this.target.dispose();
+    this.material.uniforms.uPaper.value.dispose();
     this.material.dispose();
     this.geometry.dispose();
   }

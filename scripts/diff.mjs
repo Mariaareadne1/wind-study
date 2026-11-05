@@ -10,8 +10,8 @@ await page.waitForFunction(() => window.__wind && !window.__wind.store.get().loa
 const res = await page.evaluate(async ({ pat, list }) => {
   const w = window.__wind;
   const grab = (n) => new Promise((res) => {
-    w.app.onceAfterFrame(() => { const c = document.createElement('canvas'); c.width = w.app.canvas.width; c.height = w.app.canvas.height; c.getContext('2d').drawImage(w.app.canvas, 0, 0); res(c); });
     w.app.stepFrames(n);
+    w.app.onceAfterFrame(() => { const c = document.createElement('canvas'); c.width = w.app.canvas.width; c.height = w.app.canvas.height; c.getContext('2d').drawImage(w.app.canvas, 0, 0); res(c); });
   });
   const base = await grab(60);
   const W = base.width, H = base.height;

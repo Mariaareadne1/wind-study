@@ -129,7 +129,7 @@ export function buildGrass(terrain: Terrain, paint: Painting, rays: ScreenRays, 
     const warmth = (rng() - 0.5) * 0.16;
     const lengthDrift = 0.8 + 0.5 * smoothstep(-0.45, 0.45, fbm(heightNoise, cx * 0.5, cz * 0.5, 2));
     const baseH = (under ? 0.3 : wisp ? 0.84 : 0.54) * scale * patchTall * lengthDrift * mix(0.85, 1.15, rng()) * mix(0.78, 1.12, crown);
-    const baseW = (under ? 0.082 : wisp ? 0.042 : 0.064) * scale;
+    const baseW = (under ? 0.092 : wisp ? 0.046 : 0.072) * scale;
     const [combX, combZ] = sampleComb(paint, cx, cz);
     const combLean = (under ? 0.16 : 0.26) * mix(0.6, 1.15, rng());
     // strands fall outward off the crown of their mound, which rounds its silhouette

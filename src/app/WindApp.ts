@@ -18,7 +18,7 @@ import { WindTextures } from '../wind/WindTextures';
 
 const MAX_DPR = 2;
 /** Full quality strand budget at a 1440×900-like frame. */
-const BASE_TUFTS = 78_000;
+const BASE_TUFTS = 60_000;
 const FRAMES_PER_BUDGET_CHECK = 45;
 
 export interface AppOptions {
@@ -110,7 +110,7 @@ export class WindApp {
     this.uniforms.uTime = this.timeUniform;
 
     this.grass = new GrassField(this.uniforms);
-    const ground = buildGround(this.terrain, this.painting, this.timeUniform);
+    const ground = buildGround(this.terrain, this.painting, this.uniforms.uFlow, this.uniforms.uFieldRect);
     this.groundDispose = ground.dispose;
     this.flowers = new Flowers(this.uniforms);
     this.scene.add(ground.mesh, this.grass.mesh, this.flowers.mesh);
@@ -230,8 +230,8 @@ export class WindApp {
 
   renderFrame(): void {
     const { renderer, sim } = this;
-    this.windTex.render(renderer, sim.alpha);
     this.timeUniform.value = sim.time + sim.alpha * SIM_DT;
+    this.windTex.render(renderer, sim.alpha, this.timeUniform.value);
     this.line.update(this.lines, this.camera, this.terrain, this.cssW, this.cssH);
     renderer.setRenderTarget(this.compositor.target);
     renderer.clear();

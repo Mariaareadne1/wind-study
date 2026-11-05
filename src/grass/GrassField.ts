@@ -12,10 +12,10 @@ import {
 } from 'three';
 import { SUN } from '../scene/paint';
 import { BEND_GLSL } from './bend';
-import { CLOUD_GLSL } from './clouds';
+import { CLOUD_SHADE_GLSL } from './clouds';
 import { STRANDS_PER_TUFT, type GrassBuffers } from './tufts';
 
-const SEGMENTS = 4;
+const SEGMENTS = 3;
 
 /** A tapered ribbon: (side, t). Positions are all computed in the vertex shader. */
 export function buildStrandGeometry(segments = SEGMENTS): BufferGeometry {
@@ -56,7 +56,7 @@ out vec3 vColor;
 out float vSide;
 out float vT;
 ${BEND_GLSL}
-${CLOUD_GLSL}
+${CLOUD_SHADE_GLSL}
 
 void main() {
   float t = position.y;
@@ -97,7 +97,7 @@ void main() {
   float sl = length(sideDir);
   sideDir = sl > 1e-3 ? sideDir / sl : vec3(1.0, 0.0, 0.0);
   // soft leaf: slim at the root, full below the middle, tapering to a fine tip
-  float prof = sqrt(max(1.0 - t * t * t, 0.0)) * smoothstep(-0.25, 0.28, t);
+  float prof = sqrt(max(1.0 - t * t * t, 0.0)) * (0.62 + 0.38 * smoothstep(0.0, 0.34, t));
   world += sideDir * side * aShape.y * uWidthScale * prof;
 
   // Colour: all of the shimmer through the field comes from the fibres' own attitude.
@@ -109,18 +109,19 @@ void main() {
   col = mix(col, min(base * 1.1 + vec3(0.05, 0.05, 0.01), vec3(1.0)), tipLight * t * t);
 
   // a strand leaning toward the sun is lit along its length; away, it falls into its own shade
-  vec3 sunH = normalize(vec3(uSun.x, 0.0, uSun.z));
+  vec3 sunH = uSun;
   float lean = dot(tangent, sunH);
   float restLean = dot(normalize(vec3(rest.x, 1.0, rest.y)), sunH);
   float sheen = (lean - restLean) * (0.25 + 0.75 * t);
-  col *= 1.0 + clamp(sheen, -1.0, 1.0) * 0.26;
-  col += vec3(0.07, 0.07, -0.005) * max(sheen, 0.0);
+  col *= 1.0 + clamp(sheen, -1.0, 1.0) * 0.2;
+  col += vec3(0.04, 0.04, -0.005) * max(sheen, 0.0);
   col = mix(col, cool * 0.7 + col * 0.45, max(-sheen, 0.0) * 0.16);
   // a bowed strand shows its paler flank
-  float flank = smoothstep(0.08, 0.95, length(bend)) * t;
-  col = mix(col, col * 1.06 + vec3(0.1, 0.105, 0.07), flank);
+  float flank = smoothstep(0.22, 1.05, length(bend)) * t;
+  col = mix(col, col * 1.03 + vec3(0.07, 0.065, 0.055), flank);
 
-  col = applyCloudShadow(col, aRoot.xz, uTime);
+  // the cloud shadow is computed once per field texel, in the flow texture
+  col = shadeCloud(col, flow.a);
 
   vColor = col;
   vSide = side;
@@ -163,7 +164,7 @@ export function makeGrassUniforms(fieldRect: Vector4): GrassUniforms {
     uFieldRect: { value: fieldRect },
     uTime: { value: 0 },
     uCamPos: { value: new Vector3() },
-    uSun: { value: new Vector3(SUN[0], SUN[1], SUN[2]) },
+    uSun: { value: new Vector3(SUN[0], 0, SUN[2]).normalize() },
     uWidthScale: { value: 1 },
     uBendGain: { value: 1 },
   };

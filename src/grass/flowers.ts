@@ -11,7 +11,7 @@ import type { ScreenRays } from '../scene/framing';
 import { fbm, makeNoise, makeRng, mix, smoothstep } from '../scene/noise';
 import { WORLD, type Terrain } from '../scene/terrain';
 import { BEND_GLSL } from './bend';
-import { CLOUD_GLSL } from './clouds';
+import { CLOUD_SHADE_GLSL } from './clouds';
 import type { GrassUniforms } from './GrassField';
 
 const R2_A = 0.7548776662466927;
@@ -150,7 +150,7 @@ out vec2 vHead;
 out float vKind;
 out float vSide;
 ${BEND_GLSL}
-${CLOUD_GLSL}
+${CLOUD_SHADE_GLSL}
 void main() {
   bool isHead = position.z > 0.5;
   float h = aShape.x;
@@ -159,7 +159,8 @@ void main() {
   float softness = aShape.w;
   vec2 fuv = (aRoot.xz - uFieldRect.xy) * uFieldRect.zw;
   vec4 b = texture(uBend, fuv);
-  float energy = texture(uFlow, fuv).r;
+  vec4 flow = texture(uFlow, fuv);
+  float energy = flow.r;
   vec2 bend = mix(b.zw, b.xy, softness) * (0.75 + 0.45 * softness) * uBendGain;
   float phase = aTint.a * 6.2831853;
   vec2 flut = vec2(sin(uTime * 5.7 + phase), cos(uTime * 4.9 + phase * 1.4)) * (0.005 + energy * 0.17);
@@ -190,7 +191,7 @@ void main() {
     vColor = mix(stem * 0.7, seed > 0.5 ? aTint.rgb : stem, t);
     vHead = vec2(-9.0, position.x);
   }
-  vColor = applyCloudShadow(vColor, aRoot.xz, uTime);
+  vColor = shadeCloud(vColor, flow.a);
   gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
 }
 `;

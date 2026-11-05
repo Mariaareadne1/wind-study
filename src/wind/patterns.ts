@@ -1,5 +1,5 @@
 export type Point2 = [number, number];
-export type PatternName = 'sweep' | 'spiral' | 'flick' | 'crossing' | 'wave';
+export type PatternName = 'sweep' | 'spiral' | 'flick' | 'crossing' | 'wave' | 'heroCurve' | 'heroSweep';
 
 export interface ScriptedStroke {
   /** World points, one per fixed sim step. */
@@ -53,6 +53,10 @@ export function pattern(name: PatternName): ScriptedStroke[] {
   switch (name) {
     case 'sweep':
       return [{ points: curve([-20, 6], [-8, -7], [6, 10], [20, -5], 96) }];
+    case 'heroCurve':
+      return [{ points: curve([-19, 8], [-9, -6], [4, 8], [15, -6], 110) }];
+    case 'heroSweep':
+      return [{ points: curve([-27, -8], [-9, 8], [9, -10], [29, 7], 86) }];
     case 'wave':
       return [{ points: curve([-26, -4], [-10, 9], [8, -9], [27, 3], 66) }];
     case 'spiral':

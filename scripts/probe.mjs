@@ -6,7 +6,7 @@ const browser = await chromium.launch({ args: ['--use-angle=metal', '--enable-gp
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
 await page.goto(`${process.env.URL ?? 'http://localhost:5428/'}?manual&fixed`);
 await page.waitForFunction(() => window.__wind && !window.__wind.store.get().loading, null, { timeout: 90000 });
-const grab = (n) => page.evaluate((n) => new Promise((res) => { const w = window.__wind; w.app.onceAfterFrame(() => res(w.app.canvas.toDataURL('image/jpeg', 0.95))); w.app.stepFrames(n); }), n);
+const grab = (n) => page.evaluate((n) => new Promise((res) => { const w = window.__wind; w.app.stepFrames(n); w.app.onceAfterFrame(() => res(w.app.canvas.toDataURL('image/jpeg', 0.95))); }), n);
 const save = (f, d) => writeFileSync(f, Buffer.from(d.split(',')[1], 'base64'));
 save(`${prefix}-rest.jpg`, await grab(60));
 await page.evaluate((p) => window.__wind.app.play(p), pat);

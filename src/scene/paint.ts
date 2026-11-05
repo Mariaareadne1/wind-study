@@ -10,7 +10,7 @@ const hex = (h: string): Rgb => {
 export const PALETTE = {
   spring: hex('#b2d66e'),
   fresh: hex('#86c060'),
-  sage: hex('#a0c186'),
+  sage: hex('#a9cf7f'),
   golden: hex('#d6d565'),
   straw: hex('#ead980'),
   deep: hex('#6fb063'),

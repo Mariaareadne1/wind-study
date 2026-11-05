@@ -11,7 +11,7 @@ await page.waitForFunction(() => window.__wind && !window.__wind.store.get().loa
 await page.evaluate((p) => { const w = window.__wind; w.app.stepFrames(60); if (p.includes('(')) new Function('w', p)(w); else w.app.play(p); }, pat);
 const files = [];
 for (let i = 0; i < +count; i++) {
-  const data = await page.evaluate((n) => new Promise((res) => { const w = window.__wind; w.app.onceAfterFrame(() => res(w.app.canvas.toDataURL('image/jpeg', 0.93))); w.app.stepFrames(n); }), +step);
+  const data = await page.evaluate((n) => new Promise((res) => { const w = window.__wind; w.app.stepFrames(n); w.app.onceAfterFrame(() => res(w.app.canvas.toDataURL('image/jpeg', 0.93))); }), +step);
   const f = `${prefix}-${i}.jpg`; writeFileSync(f, Buffer.from(data.split(',')[1], 'base64')); files.push(f);
 }
 console.log(files.join(' '), errs);
