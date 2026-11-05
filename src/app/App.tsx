@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Store, useStore } from '../state/store';
+import { loadStored, saveStored, tuningFromQuery } from '../state/tuning';
 import { Controls } from '../ui/Controls';
 import { WindApp } from './WindApp';
 import * as patterns from '../wind/patterns';
@@ -19,12 +20,26 @@ export function App() {
   const [app, setApp] = useState<WindApp | null>(null);
   const loading = useStore(store, (s) => s.loading);
   const error = useStore(store, (s) => s.error);
+  const framed = useStore(store, (s) => s.framed);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const q = new URLSearchParams(location.search);
     let built: WindApp | null = null;
+    const stored = q.has('manual') ? { tuning: store.get().tuning, framed: false } : loadStored();
+    const frameParam = q.get('frame');
+    store.set({
+      tuning: tuningFromQuery(q, stored.tuning),
+      framed: frameParam === null ? stored.framed : frameParam === '1',
+      // ?demo is a clean stage for screen recording
+      uiHidden: q.has('demo'),
+      hint: !q.has('demo'),
+    });
+    const unsubscribe = store.subscribe(() => {
+      const s = store.get();
+      if (!q.has('manual')) saveStored(s.tuning, s.framed);
+    });
     // paint the loading note first: the meadow takes a moment to bake
     const handle = window.setTimeout(() => {
       try {
@@ -47,12 +62,13 @@ export function App() {
     }, 30);
     return () => {
       clearTimeout(handle);
+      unsubscribe();
       built?.dispose();
     };
   }, [store]);
 
   return (
-    <div className="stage">
+    <div className={framed ? 'stage framed' : 'stage'}>
       <canvas ref={canvasRef} data-testid="meadow" aria-label="A hand-painted meadow. Draw on it to make the wind blow; keyboard users can press 1 to 4 for ready-made gusts." />
       <Controls store={store} app={app} />
       {loading && <p className="status" role="status">Painting the meadow…</p>}

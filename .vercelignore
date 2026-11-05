@@ -2,3 +2,5 @@ artifacts/
 test-results/
 node_modules/
 tests/
+docs/
+scripts/

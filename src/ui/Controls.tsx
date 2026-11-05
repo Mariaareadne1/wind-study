@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { WindApp } from '../app/WindApp';
 import { saveRecording, saveStill, startRecording, type ActiveRecording } from '../capture/capture';
 import { type Store, type Strength, useStore } from '../state/store';
-import type { PatternName } from '../wind/patterns';
+import { DEMO_SECONDS, type PatternName } from '../wind/patterns';
+import { TunePanel } from './TunePanel';
 
 const STRENGTHS: { id: Strength; label: string; tip: string }[] = [
   { id: 'breeze', label: 'Breeze', tip: 'Gentle wind' },
@@ -26,6 +27,7 @@ export function Controls({ store, app }: Props) {
   const s = useStore(store, (x) => x);
   const recording = useRef<ActiveRecording | null>(null);
   const toastTimer = useRef(0);
+  const demoTimer = useRef(0);
 
   const toast = useCallback(
     (message: string) => {
@@ -46,20 +48,25 @@ export function Controls({ store, app }: Props) {
     }
   }, [app, toast]);
 
+  const finishRecording = useCallback(async () => {
+    const active = recording.current;
+    if (!active) return;
+    recording.current = null;
+    store.set({ recording: false });
+    active.stop();
+    try {
+      const { blob, extension } = await active.done;
+      saveRecording(blob, extension);
+      toast('Saved the recording.');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Recording failed.');
+    }
+  }, [store, toast]);
+
   const toggleRecording = useCallback(async () => {
     if (!app) return;
     if (recording.current) {
-      const active = recording.current;
-      recording.current = null;
-      store.set({ recording: false });
-      active.stop();
-      try {
-        const { blob, extension } = await active.done;
-        saveRecording(blob, extension);
-        toast('Saved the recording.');
-      } catch (e) {
-        toast(e instanceof Error ? e.message : 'Recording failed.');
-      }
+      await finishRecording();
       return;
     }
     try {
@@ -76,11 +83,27 @@ export function Controls({ store, app }: Props) {
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Recording failed.');
     }
-  }, [app, store, toast]);
+  }, [app, store, toast, finishRecording]);
+
+  const endDemo = useCallback(() => {
+    clearTimeout(demoTimer.current);
+    store.set({ demo: false, uiHidden: false });
+    void finishRecording();
+  }, [store, finishRecording]);
+
+  /** One press: a clean stage, the scripted gestures, and a saved video of the whole thing. */
+  const recordDemo = useCallback(() => {
+    if (!app || recording.current) return;
+    store.set({ tuneOpen: false, helpOpen: false, uiHidden: true, demo: true });
+    app.playDemo();
+    void toggleRecording();
+    demoTimer.current = window.setTimeout(endDemo, DEMO_SECONDS * 1000);
+  }, [app, store, toggleRecording, endDemo]);
 
   useEffect(
     () => () => {
       clearTimeout(toastTimer.current);
+      clearTimeout(demoTimer.current);
       recording.current?.stop();
       recording.current = null;
     },
@@ -94,9 +117,12 @@ export function Controls({ store, app }: Props) {
       const st = store.get();
       const target = e.target as HTMLElement;
       if (e.key === 'Escape') {
-        store.set({ helpOpen: false });
+        if (st.demo) endDemo();
+        store.set({ helpOpen: false, tuneOpen: false });
         return;
       }
+      // the arrow keys and Space belong to a focused slider or checkbox
+      if (target.tagName === 'INPUT') return;
       // Space and Enter belong to a focused button
       if ((e.key === ' ' || e.key === 'Enter') && target.tagName === 'BUTTON') return;
       const p = PATTERNS.find((x) => x.key === e.key);
@@ -109,11 +135,14 @@ export function Controls({ store, app }: Props) {
       else if (e.key === 'r' || e.key === 'R') app.resetScene();
       else if (e.key === 'h' || e.key === 'H') store.set({ uiHidden: !st.uiHidden });
       else if (e.key === 's' || e.key === 'S') void capture();
-      else if (e.key === '?') store.set({ helpOpen: !st.helpOpen });
+      else if (e.key === '?') store.set({ helpOpen: !st.helpOpen, tuneOpen: false });
+      else if (e.key === 't' || e.key === 'T') store.set({ tuneOpen: !st.tuneOpen, helpOpen: false });
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [app, store, capture]);
+  }, [app, store, capture, endDemo]);
+
+  if (s.demo) return <div className="ui" />;
 
   if (s.uiHidden) {
     return (
@@ -135,7 +164,8 @@ export function Controls({ store, app }: Props) {
 
       <nav className="corner top-right" aria-label="Scene">
         <button disabled={off} onClick={() => app?.resetScene()} title="Restore the original meadow (R)">Reset</button>
-        <button onClick={() => store.set({ helpOpen: !s.helpOpen })} aria-expanded={s.helpOpen} title="Controls and shortcuts (?)">Help</button>
+        <button onClick={() => store.set({ tuneOpen: !s.tuneOpen, helpOpen: false })} aria-expanded={s.tuneOpen} title="Adjust the wind and the grass (T)">Tune</button>
+        <button onClick={() => store.set({ helpOpen: !s.helpOpen, tuneOpen: false })} aria-expanded={s.helpOpen} title="Controls and shortcuts (?)">Help</button>
       </nav>
 
       <nav className="corner bottom-left" aria-label="Wind">
@@ -172,6 +202,8 @@ export function Controls({ store, app }: Props) {
       {s.hint && !s.loading && !s.error && <p className="hint">Draw to make the wind blow.</p>}
       {s.toast && <p className="toast" role="status">{s.toast}</p>}
 
+      {s.tuneOpen && <TunePanel store={store} onDemo={recordDemo} demoDisabled={off || s.recording} />}
+
       {s.helpOpen && (
         <aside className="help" aria-label="Help">
           <p>Press and drag anywhere. A long line makes a rolling gust, a flick a short burst, a spiral a whirl. Overlapping gusts combine.</p>
@@ -189,6 +221,7 @@ export function Controls({ store, app }: Props) {
             <dt>Space</dt><dd>Pause</dd>
             <dt>Z</dt><dd>Undo the latest gust</dd>
             <dt>C</dt><dd>Clear drawn wind</dd>
+            <dt>T</dt><dd>Tune the wind and grass</dd>
             <dt>R</dt><dd>Reset</dd>
             <dt>S</dt><dd>Capture a still</dd>
             <dt>H</dt><dd>Hide the interface</dd>

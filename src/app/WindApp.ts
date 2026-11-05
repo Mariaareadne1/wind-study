@@ -10,9 +10,11 @@ import { buildGround } from '../scene/Ground';
 import { buildPainting, type Painting } from '../scene/paint';
 import { Terrain } from '../scene/terrain';
 import { STRENGTH_GAIN, type Store } from '../state/store';
+import { DEFAULT_TUNING } from '../state/tuning';
 import { FIELD } from '../wind/grid';
 import type { Gust } from '../wind/gust';
-import { pattern, type PatternName, type ScriptedStroke } from '../wind/patterns';
+import { DEMO_TIMELINE, pattern, type PatternName, scaleStroke, type ScriptedStroke } from '../wind/patterns';
+import { frameMargin, type Tuning } from '../state/tuning';
 import { SIM_DT, WindSim } from '../wind/WindSim';
 import { WindTextures } from '../wind/WindTextures';
 
@@ -20,6 +22,8 @@ const MAX_DPR = 2;
 /** Full quality strand budget at a 1440×900-like frame. */
 const BASE_TUFTS = 60_000;
 const FRAMES_PER_BUDGET_CHECK = 45;
+/** Half the world width across the middle of the 16:10 frame the patterns were composed in. */
+const LANDSCAPE_HALF_WIDTH = 15.5;
 
 export interface AppOptions {
   seed: number;
@@ -72,6 +76,9 @@ export class WindApp {
   private smoother = new PointerSmoother();
   private readonly ro: ResizeObserver;
   private disposed = false;
+  private readonly unsubscribe: () => void;
+  private appliedTuning: Tuning | null = null;
+  private appliedFramed: boolean | null = null;
   private contextLost = false;
   private readonly seed: number;
   private readonly opts: AppOptions;
@@ -102,8 +109,7 @@ export class WindApp {
     this.terrain = new Terrain(this.seed);
     this.painting = buildPainting(this.terrain, this.seed);
     this.sim = new WindSim(this.seed);
-    if (opts.reducedMotion) this.sim.ambient.amount = 0.35;
-    this.windTex = new WindTextures();
+        this.windTex = new WindTextures();
     this.sim.onStep = () => this.windTex.ingest(this.sim);
 
     this.uniforms = makeGrassUniforms(new Vector4(FIELD.minX, FIELD.minZ, 1 / FIELD.width, 1 / FIELD.depth));
@@ -119,6 +125,8 @@ export class WindApp {
 
     this.resize();
     this.rebuildGrass();
+    this.syncSettings();
+    this.unsubscribe = store.subscribe(this.syncSettings);
     // fill the raw textures with the state at t=0, so the first frame has wind data
     this.sim.step();
     this.sim.step();
@@ -174,6 +182,7 @@ export class WindApp {
     const w = Math.round(this.cssW * this.dpr);
     const h = Math.round(this.cssH * this.dpr);
     this.compositor.setSize(w, h, this.dpr);
+    this.applyFrame();
   }
 
   start(): void {
@@ -240,7 +249,12 @@ export class WindApp {
     renderer.render(this.scene, this.camera);
     this.compositor.present(renderer);
     renderer.autoClear = false;
+    // the ink stays on the painting, off the border
+    const mat = this.store.get().framed ? frameMargin(this.cssW, this.cssH) : 0;
+    renderer.setScissorTest(mat > 0);
+    if (mat > 0) renderer.setScissor(mat, mat, this.cssW - 2 * mat, this.cssH - 2 * mat);
     this.line.render(renderer);
+    renderer.setScissorTest(false);
     renderer.autoClear = true;
     this.frames++;
     if (this.afterFrame.length > 0) {
@@ -296,7 +310,28 @@ export class WindApp {
   }
 
   private gain(): number {
-    return STRENGTH_GAIN[this.store.get().strength] * (this.opts.reducedMotion ? 0.6 : 1);
+    const { strength, tuning } = this.store.get();
+    return STRENGTH_GAIN[strength] * tuning.force * (this.opts.reducedMotion ? 0.6 : 1);
+  }
+
+  /** Applies whatever the tuning panel says. Runs on every store change, and only acts on a real change. */
+  private syncSettings = (): void => {
+    const { tuning, framed } = this.store.get();
+    if (tuning === this.appliedTuning && framed === this.appliedFramed) return;
+    this.appliedTuning = tuning;
+    this.uniforms.uBendGain.value = tuning.lean;
+    this.uniforms.uFlutter.value = tuning.flutter;
+    this.sim.applyTuning(tuning, this.opts.reducedMotion ? 0.35 : 1);
+    if (framed !== this.appliedFramed) {
+      this.appliedFramed = framed;
+      this.applyFrame();
+    }
+    if (!this.running && !this.store.get().loading) this.renderFrame();
+  };
+
+  private applyFrame(): void {
+    const framed = this.store.get().framed;
+    this.compositor.setMat(framed ? frameMargin(this.cssW, this.cssH) * this.dpr : 0);
   }
 
   private beginGust(): Gust {
@@ -353,8 +388,42 @@ export class WindApp {
     this.store.set({ hint: false });
   }
 
-  play(name: PatternName): void {
-    for (const stroke of pattern(name)) this.playStroke(stroke);
+  play(name: PatternName, delaySteps = 0): void {
+    const fit = this.patternFit();
+    for (const stroke of pattern(name)) {
+      this.playStroke({ ...scaleStroke(stroke, fit), delay: (stroke.delay ?? 0) + delaySteps });
+    }
+  }
+
+  /** Ready-made gestures were composed for a landscape frame; a narrow frame shrinks them to fit. */
+  private patternFit(): number {
+    const left = this.worldAt(this.canvasLeft(), this.canvasMidY());
+    const right = this.worldAt(this.canvasLeft() + this.cssW, this.canvasMidY());
+    if (!left || !right) return 1;
+    return Math.min(1, Math.max(0.3, Math.abs(right[0] - left[0]) / 2 / LANDSCAPE_HALF_WIDTH));
+  }
+
+  private canvasLeft(): number {
+    return this.canvas.getBoundingClientRect().left;
+  }
+
+  private canvasMidY(): number {
+    const r = this.canvas.getBoundingClientRect();
+    return r.top + r.height / 2;
+  }
+
+  /** Restart from a calm meadow, then run the 20-second film through the real gesture pipeline. */
+  playDemo(): void {
+    this.scripted.length = 0;
+    this.activeGust = null;
+    this.pointerId = null;
+    this.lines.length = 0;
+    this.sim.reset();
+    this.sim.step();
+    this.sim.step();
+    this.setPaused(false);
+    this.store.set({ hint: false, active: 0 });
+    for (const beat of DEMO_TIMELINE) this.play(beat.name, Math.round(beat.at / SIM_DT));
   }
 
   private feedScripted(): void {
@@ -422,7 +491,7 @@ export class WindApp {
     this.sim.step();
     this.sim.step();
     this.setPaused(false);
-    this.store.set({ active: 0, strength: 'gust', hint: true });
+    this.store.set({ active: 0, strength: 'gust', hint: true, tuning: DEFAULT_TUNING, framed: false, demo: false });
   }
 
   private onContextLost = (e: Event): void => {
@@ -440,6 +509,7 @@ export class WindApp {
   dispose(): void {
     this.disposed = true;
     this.stop();
+    this.unsubscribe();
     clearTimeout(this.pendingRebuild);
     this.ro.disconnect();
     const c = this.canvas;

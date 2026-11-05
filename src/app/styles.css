@@ -71,3 +71,21 @@ button:disabled { opacity: 0.42; cursor: default; }
   .hint { animation: none; }
   button { transition: none; }
 }
+
+/* the painted border: keeps the interface on the painting, matching frameMargin() in tuning.ts */
+.stage { --mat: 0px; }
+.stage.framed { --mat: max(16px, 4.5vmin); }
+.title { margin: var(--mat) 0 0 var(--mat); }
+.top-right { margin: var(--mat) var(--mat) 0 0; }
+.bottom-left { margin: 0 0 var(--mat) var(--mat); }
+.bottom-right { margin: 0 var(--mat) var(--mat) 0; }
+.help { margin: var(--mat) var(--mat) 0 0; }
+.tune .presets { margin: -6px 0 8px -8px; }
+.slider { display: grid; grid-template-columns: 76px 1fr 38px; align-items: center; gap: 8px; min-height: 28px; font-size: 12.5px; }
+.slider input { width: 100%; min-width: 0; margin: 0; accent-color: var(--ink); touch-action: none; }
+.slider input:focus-visible, .check input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.slider output { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-soft); font-size: 12px; }
+.check { display: flex; align-items: center; gap: 8px; margin-top: 8px; min-height: 28px; font-size: 12.5px; }
+.check input { margin: 0; accent-color: var(--ink); }
+.tune .demo { display: block; margin: 6px 0 0 -8px; font-weight: 600; }
+.tune .close { display: block; margin-top: 0; }

@@ -70,7 +70,7 @@ export class Compositor {
       glslVersion: GLSL3,
       depthTest: false,
       depthWrite: false,
-      uniforms: { uScene: { value: this.target.texture }, uPixel: { value: [1 / 4, 1 / 4] }, uDpr: { value: 1 }, uPaper: { value: makePaper() } },
+      uniforms: { uScene: { value: this.target.texture }, uPixel: { value: [1 / 4, 1 / 4] }, uDpr: { value: 1 }, uPaper: { value: makePaper() }, uMat: { value: 0 }, uSize: { value: [4, 4] } },
       vertexShader: /* glsl */ `
         in vec3 position;
         out vec2 vUv;
@@ -83,6 +83,8 @@ export class Compositor {
         uniform vec2 uPixel;
         uniform float uDpr;
         uniform sampler2D uPaper;
+        uniform float uMat; // border width in device px; 0 is full bleed
+        uniform vec2 uSize;
         void main() {
           // the faintest softening: fibres should feel soft, never crunchy
           vec2 px = uPixel * max(uDpr * 0.6, 0.75);
@@ -100,6 +102,23 @@ export class Compositor {
           c = mix(vec3(0.075, 0.09, 0.07), vec3(1.0), c);
           vec2 q = vUv - 0.5;
           c *= 1.0 - dot(q, q) * 0.11;
+          if (uMat > 0.0) {
+            // a loaded brush stopping short of the paper's edge: slow wander plus dry, feathered bristle
+            vec2 p = gl_FragCoord.xy;
+            vec2 d = min(p, uSize - p);
+            float edge = min(d.x, d.y);
+            float along = d.x < d.y ? p.y : p.x;
+            // sampled off-axis and at unrelated scales, so the edge never settles into a repeating wave
+            float wander = texture(uPaper, vec2(along * 0.00023, along * 0.00011 + 0.21) / uDpr).g - 0.5;
+            float drag = texture(uPaper, vec2(along * 0.0013, along * 0.0007 + 0.63) / uDpr).r - 0.5;
+            float bristle = texture(uPaper, vec2(along * 0.0093, edge * 0.021 + 0.4) / uDpr).r - 0.5;
+            float reach = uMat * (1.0 + wander * 0.22) + (drag * 5.0 + bristle * 7.0) * uDpr;
+            float paint = smoothstep(reach - 1.6 * uDpr, reach + 1.6 * uDpr, edge);
+            // pigment pools faintly where the brush stopped
+            c *= 1.0 - 0.07 * (1.0 - smoothstep(reach, reach + 9.0 * uDpr, edge));
+            vec3 paper = vec3(0.957, 0.937, 0.87) * (1.0 + (tooth - 0.5) * 0.05);
+            c = mix(paper, c, paint);
+          }
           c += (tooth - 0.5) * 1.5 / 255.0;
           outColor = vec4(c, 1.0);
         }`,
@@ -113,6 +132,12 @@ export class Compositor {
     this.target.setSize(width, height);
     this.material.uniforms.uPixel.value = [1 / width, 1 / height];
     this.material.uniforms.uDpr.value = dpr;
+    this.material.uniforms.uSize.value = [width, height];
+  }
+
+  /** Painted border width in device px; 0 for full bleed. */
+  setMat(devicePx: number): void {
+    this.material.uniforms.uMat.value = devicePx;
   }
 
   present(renderer: WebGLRenderer): void {

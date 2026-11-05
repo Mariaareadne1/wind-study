@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { DEFAULT_TUNING, type Tuning } from './tuning';
 
 export type Strength = 'breeze' | 'gust' | 'gale';
 export const STRENGTH_GAIN: Record<Strength, number> = { breeze: 0.62, gust: 1, gale: 1.5 };
@@ -16,6 +17,11 @@ export interface AppState {
   recording: boolean;
   toast: string | null;
   fps: number;
+  tuning: Tuning;
+  framed: boolean;
+  tuneOpen: boolean;
+  /** A scripted 20-second demo is playing. */
+  demo: boolean;
 }
 
 const INITIAL: AppState = {
@@ -30,6 +36,10 @@ const INITIAL: AppState = {
   recording: false,
   toast: null,
   fps: 0,
+  tuning: DEFAULT_TUNING,
+  framed: false,
+  tuneOpen: false,
+  demo: false,
 };
 
 export class Store {

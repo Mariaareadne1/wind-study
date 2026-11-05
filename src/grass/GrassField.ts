@@ -52,6 +52,7 @@ uniform vec3 uCamPos;
 uniform vec3 uSun;
 uniform float uWidthScale;
 uniform float uBendGain;
+uniform float uFlutter;
 out vec3 vColor;
 out float vSide;
 out float vT;
@@ -79,7 +80,7 @@ void main() {
 
   // lingering tip flutter: amplitude follows wind energy, phase is steady, so it never jumps
   float energy = flow.r;
-  float fl = (0.004 + energy * 0.14) * (0.6 + 0.8 * softness);
+  float fl = (0.004 + energy * 0.14) * (0.6 + 0.8 * softness) * uFlutter;
   float wob = phase + dot(aRoot.xz, vec2(0.9, 0.7));
   vec2 flut = vec2(
     sin(uTime * 7.3 + wob) + 0.5 * sin(uTime * 11.9 + wob * 1.7),
@@ -155,6 +156,7 @@ export interface GrassUniforms {
   uSun: { value: Vector3 };
   uWidthScale: { value: number };
   uBendGain: { value: number };
+  uFlutter: { value: number };
 }
 
 export function makeGrassUniforms(fieldRect: Vector4): GrassUniforms {
@@ -167,6 +169,7 @@ export function makeGrassUniforms(fieldRect: Vector4): GrassUniforms {
     uSun: { value: new Vector3(SUN[0], 0, SUN[2]).normalize() },
     uWidthScale: { value: 1 },
     uBendGain: { value: 1 },
+    uFlutter: { value: 1 },
   };
 }
 

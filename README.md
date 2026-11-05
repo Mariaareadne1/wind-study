@@ -4,7 +4,7 @@ Draw a line across a hand-painted meadow. The line fades, but its force stays: a
 
 ![The meadow at rest](docs/media/rest.jpg)
 
-[Hero film (20 s)](docs/media/hero.mp4) · [Case study](CASE_STUDY.md)
+**Live: https://wind-study.vercel.app** · [Hero film (20 s)](docs/media/hero.mp4) · [Case study](CASE_STUDY.md)
 
 | At rest vs mid-gust, same patch of grass |
 | --- |
@@ -34,9 +34,31 @@ npm run build && npm run preview   # production build on http://localhost:4428
 | Capture (S) | Saves a PNG without the interface |
 | Record | Saves a video of the canvas (MP4 or WebM, depending on the browser) |
 | Hide (H) | Hides the interface |
+| Tune (T) | Less / Default / More, six sliders, painted border, one-press demo recording |
 | 1, 2, 3, 4 | A sweep, spiral, flick or crossing gusts, without a pointer |
 
 `prefers-reduced-motion` turns the breeze and gust strength down.
+
+## Tuning and demos
+
+Every setting is a multiplier on the design, so 100% is always the default. Settings persist between visits; Reset restores the defaults. Double-click a slider to reset just that one. Any look can be shared by URL:
+
+| URL | Result |
+| --- | --- |
+| `/?preset=less`, `/?preset=more` | The grass barely stirs, or is thrown about |
+| `/?lean=1.3&linger=2` | Individual settings: `force`, `lean`, `sway`, `linger`, `flutter`, `breeze` |
+| `/?frame=1` | Painted paper border. It appears in captures and recordings too. |
+| `/?demo` | Starts with the interface hidden, for screen recording. H brings it back. |
+
+Tune → **Record 20-second demo** plays the scripted film and saves a video at the window's size. For exact sizes, render offline through the real renderer (needs the dev server):
+
+```bash
+CRF=19 QUERY='frame=1' node scripts/film.mjs out.mp4 hero 20 60 1.5 720 900    # 1080×1350, 60 fps
+```
+
+```bash
+CRF=19 node scripts/film.mjs out.mp4 hero 20 60 1.5 1280 720                   # 1920×1080, 60 fps
+```
 
 ## How it works
 
@@ -70,23 +92,25 @@ pointer ─► smoothing ─► Gust (path + travelling head)
 
 ```bash
 npm run typecheck && npm run lint
-npm test                                            # 34 numeric tests
-npm run test:e2e                                    # 32 tests in real Chromium, real GPU
+npm test                                            # 44 numeric tests
+npm run test:e2e                                    # 40 tests in real Chromium, real GPU
 E2E_PROD=1 npm run test:e2e                         # the same, against the production build
 npx playwright test -c playwright.cross.config.ts   # WebKit and Firefox smoke test
 ```
 
 The visual snapshots in `tests/e2e/visual.spec.ts-snapshots` were made on an Apple M2 Pro. On other GPUs, regenerate them with `--update-snapshots`.
 
-QA scripts, which need the dev server running: `scripts/film.mjs` (offline video through the real renderer), `diff.mjs` (motion map on real pixels), `fieldmap.mjs`, `probe.mjs`, `perf.mjs`, `raf.mjs`, `ui.mjs`.
+QA scripts, which need the dev server running: `scripts/film.mjs` (offline video through the real renderer), `diff.mjs` (motion map on real pixels), `fieldmap.mjs`, `probe.mjs`, `perf.mjs`, `raf.mjs`, `ui.mjs`, `compare.mjs` (the same moment under different settings).
 
 ## Deploy
 
-Static site; `vercel.json` is included. The project has not been deployed.
+Live at https://wind-study.vercel.app. There is no Git integration, so pushes don't deploy. Redeploy after pushing:
 
 ```bash
 npx vercel --prod
 ```
+
+Test a deployed site by setting `E2E_URL`, for example `E2E_URL=https://wind-study.vercel.app npx playwright test tests/e2e/meadow.spec.ts`.
 
 ## Credits
 

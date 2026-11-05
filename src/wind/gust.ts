@@ -96,7 +96,9 @@ export class Gust {
 
   /** How broad the gust is. Slow strokes are wide and gentle; quick ones narrow and sharp. */
   radius(): number {
-    return mix(3.6, 2.3, smoothstep(6, 50, this.pointerSpeed));
+    // stronger wind also takes a wider swath; at the default gain this factor is exactly 1
+    const swath = clamp(0.6 + 0.4 * this.gain, 0.75, 1.75);
+    return mix(3.6, 2.3, smoothstep(6, 50, this.pointerSpeed)) * swath;
   }
 
   trail(): number {

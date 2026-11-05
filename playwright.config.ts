@@ -6,6 +6,8 @@ import { defineConfig, devices } from '@playwright/test';
  */
 const prod = process.env.E2E_PROD === '1';
 const port = prod ? 4428 : 5428;
+/** Set E2E_URL to test a deployed site instead of a local server. */
+const live = process.env.E2E_URL;
 
 export default defineConfig({
   testDir: 'tests/e2e',
@@ -15,17 +17,19 @@ export default defineConfig({
   reporter: [['list']],
   outputDir: 'test-results',
   use: {
-    baseURL: `http://localhost:${port}`,
+    baseURL: live ?? `http://localhost:${port}`,
     acceptDownloads: true,
     launchOptions: { args: ['--use-angle=metal', '--enable-gpu'] },
   },
   projects: [
     { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } },
   ],
-  webServer: {
-    command: prod ? 'npm run build && npm run preview' : 'npm run dev',
-    port,
-    reuseExistingServer: true,
-    timeout: 180_000,
-  },
+  webServer: live
+    ? undefined
+    : {
+        command: prod ? 'npm run build && npm run preview' : 'npm run dev',
+        port,
+        reuseExistingServer: true,
+        timeout: 180_000,
+      },
 });

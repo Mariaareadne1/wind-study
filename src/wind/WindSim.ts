@@ -1,9 +1,10 @@
 import { clamp } from '../scene/noise';
 import { AmbientWind } from './ambient';
-import { WindField } from './field';
+import { DEFAULT_FIELD_TUNING, WindField } from './field';
 import { Gust } from './gust';
 import { FIELD as FIELD_CONST, NX, NZ, sampleGridStrided as sampleGrid4 } from './grid';
-import { GrassResponse } from './response';
+import { GrassResponse, SOFT_FREQ, STIFF_FREQ } from './response';
+import type { Tuning } from '../state/tuning';
 
 export const SIM_DT = 1 / 60;
 /** After a stall, drop time rather than fast-forward through it. */
@@ -35,6 +36,15 @@ export class WindSim {
   constructor(seed: number) {
     this.ambient = new AmbientWind(seed);
     this.ambient.update(0);
+  }
+
+  /** Everything here takes effect at once, on wind already blowing. Stroke force is applied per stroke. */
+  applyTuning(t: Tuning, breezeScale = 1): void {
+    this.response.soft.freq = SOFT_FREQ * t.sway;
+    this.response.stiff.freq = STIFF_FREQ * t.sway;
+    this.response.linger = t.linger;
+    this.field.tuning.drag = DEFAULT_FIELD_TUNING.drag * t.linger;
+    this.ambient.amount = t.breeze * breezeScale;
   }
 
   begin(gain: number): Gust {

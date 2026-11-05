@@ -13,6 +13,8 @@ const ENERGY_DECAY = 2.4;
 export const WIND_REF = 7.5;
 /** Bend reached at infinite wind. In radians of arc along the strand, before the soft limit. */
 export const MAX_BEND = 2.3;
+export const SOFT_FREQ = 0.82;
+export const STIFF_FREQ = 1.55;
 
 /**
  * Grass inertia, solved per field cell rather than per strand. Each cell carries
@@ -27,8 +29,10 @@ export class GrassResponse {
   private readonly vel = new Float32Array(NX * NZ * 4);
   /** Flutter energy: rises with wind, fades slowly so tips keep trembling after a gust. */
   readonly energy = new Float32Array(NX * NZ);
-  soft: SpringTuning = { freq: 0.82, damping: 0.5 };
-  stiff: SpringTuning = { freq: 1.55, damping: 0.62 };
+  soft: SpringTuning = { freq: SOFT_FREQ, damping: 0.5 };
+  stiff: SpringTuning = { freq: STIFF_FREQ, damping: 0.62 };
+  /** Multiplies how long flutter takes to fade. */
+  linger = 1;
 
   reset(): void {
     this.bend.fill(0);
@@ -59,7 +63,7 @@ export class GrassResponse {
     const k2 = w2 * w2;
     const c1 = 2 * this.soft.damping * w1;
     const c2 = 2 * this.stiff.damping * w2;
-    const fade = Math.exp(-dt / ENERGY_DECAY);
+    const fade = Math.exp(-dt / (ENERGY_DECAY * this.linger));
     for (let a = 0; a < energy.length; a++) {
       const wu = windU[a];
       const wv = windV[a];

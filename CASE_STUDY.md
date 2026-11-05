@@ -61,6 +61,10 @@ A strand is a constant-curvature arc. Its root is exactly anchored and its lengt
 
 **Performance was not where expected.** Cutting vertices helped less than predicted. Measuring with almost no grass showed 14 ms a frame at DPR 2, all per-pixel: procedural paper noise, and the ground drawn under everything. Baking the grain into a small texture, drawing the ground last and moving cloud shadow into the field texture recovered it.
 
+## Tuning: when more stops meaning further
+
+The first "More" preset barely registered: only 14% more movement than default on real pixels. Grass near its bend limit can't lean much further, however hard it's pushed. So More now shows as reach instead: a stronger gust takes a wider swath and lingers longer. Measured across the whole frame at the same moment, the same stroke moves Less 1.8, Default 9.9 and More 16.9.
+
 ## Performance
 
 Measured on an Apple M2 Pro (19-core GPU) in Chromium via Metal, at 2880×1800 with 360,000 strands and gusts blowing, system load around 7:
@@ -81,4 +85,4 @@ All code and artwork are original and procedural. No image or texture assets are
 
 ## Future work
 
-Not implemented: pinned persistent wind paths, wind-carried seed fluff, birds or butterflies, moving the simulation to a worker or the GPU, a debug vector overlay in the UI.
+Not implemented: fixed-aspect in-app recording, pinned persistent wind paths, wind-carried seed fluff, birds or butterflies, moving the simulation to a worker or the GPU, a debug vector overlay in the UI.

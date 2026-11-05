@@ -48,6 +48,20 @@ export function spiralPoints(cx: number, cz: number, maxR: number, turns: number
   return resample(dense, steps);
 }
 
+/** Shrink a stroke about the origin, so a ready-made gesture fits a narrow frame. */
+export function scaleStroke(stroke: ScriptedStroke, factor: number): ScriptedStroke {
+  return { ...stroke, points: stroke.points.map(([x, z]) => [x * factor, z * factor]) };
+}
+
+export const DEMO_SECONDS = 20;
+
+/** The 20-second film: a long curve at 3 s, a spiral at 7 s, a full sweep at 15 s. */
+export const DEMO_TIMELINE: readonly { at: number; name: PatternName }[] = [
+  { at: 3, name: 'heroCurve' },
+  { at: 7, name: 'spiral' },
+  { at: 15, name: 'heroSweep' },
+];
+
 /** Ready-made gestures, played through the same pipeline as a real pointer. Keyboard users get these. */
 export function pattern(name: PatternName): ScriptedStroke[] {
   switch (name) {

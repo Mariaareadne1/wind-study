@@ -145,6 +145,7 @@ uniform vec4 uFieldRect;
 uniform float uTime;
 uniform vec3 uCamPos;
 uniform float uBendGain;
+uniform float uFlutter;
 out vec3 vColor;
 out vec2 vHead;
 out float vKind;
@@ -163,7 +164,7 @@ void main() {
   float energy = flow.r;
   vec2 bend = mix(b.zw, b.xy, softness) * (0.75 + 0.45 * softness) * uBendGain;
   float phase = aTint.a * 6.2831853;
-  vec2 flut = vec2(sin(uTime * 5.7 + phase), cos(uTime * 4.9 + phase * 1.4)) * (0.005 + energy * 0.17);
+  vec2 flut = vec2(sin(uTime * 5.7 + phase), cos(uTime * 4.9 + phase * 1.4)) * (0.005 + energy * 0.17) * uFlutter;
   vec2 A = aLean + bend + flut;
   vec3 tangent;
   float t = isHead ? 1.0 : position.y;
