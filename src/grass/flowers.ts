@@ -11,7 +11,7 @@ import type { ScreenRays } from '../scene/framing';
 import { fbm, makeNoise, makeRng, mix, smoothstep } from '../scene/noise';
 import { WORLD, type Terrain } from '../scene/terrain';
 import { BEND_GLSL } from './bend';
-import { CLOUD_SHADE_GLSL } from './clouds';
+import { CLOUD_SHADE_GLSL, HAZE_GLSL } from './clouds';
 import type { GrassUniforms } from './GrassField';
 
 const R2_A = 0.7548776662466927;
@@ -149,12 +149,15 @@ uniform float uTime;
 uniform vec3 uCamPos;
 uniform float uBendGain;
 uniform float uFlutter;
+uniform vec4 uHaze;
+uniform vec2 uHazeRange;
 out vec3 vColor;
 out vec2 vHead;
 out float vKind;
 out float vSide;
 ${BEND_GLSL}
 ${CLOUD_SHADE_GLSL}
+${HAZE_GLSL}
 void main() {
   bool isHead = position.z > 0.5;
   float h = aShape.x;
@@ -195,7 +198,7 @@ void main() {
     vColor = mix(stem * 0.7, seed > 0.5 ? aTint.rgb : stem, t);
     vHead = vec2(-9.0, position.x);
   }
-  vColor = shadeCloud(vColor, flow.a);
+  vColor = applyHaze(shadeCloud(vColor, flow.a), length(uCamPos - world), uHaze, uHazeRange);
   gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
 }
 `;

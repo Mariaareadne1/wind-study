@@ -101,6 +101,8 @@ export interface PaintLook {
   valleyShade: number;
   baseline?: (z: number) => number;
   patchSharpness: number;
+  formShade?: number;
+  shadowDepth?: number;
 }
 
 const DEFAULT_LOOK: PaintLook = { litGain: 3.6, airFrom: -8, airTo: -24, airAmount: 0.22, airColor: [0.84, 0.9, 0.76], castShadows: false, valleyShade: 0, patchSharpness: 2.2 };
@@ -258,10 +260,24 @@ export function buildPainting(terrain: Terrain, seed: number, opts: PaintOptions
           const over = terrain.height(x + sunX * d, z + sunZ * d) - (ground + climb * d * 0.62);
           if (over > block) block = over;
         }
-        const cast = smoothstep(0, 1.5, block);
+        const cast = smoothstep(0, 1.5, block) * ((look.shadowDepth ?? 0.26) / 0.26);
         r *= 1 - cast * 0.26;
-        g *= 1 - cast * 0.12;
-        b *= 1 - cast * 0.03;
+        g *= 1 - cast * 0.13;
+        b *= 1 - cast * 0.02;
+      }
+      if (look.formShade) {
+        // curvature at the scale of a hill: rounded tops catch light, creases between hills fall into cool shade
+        const e = 1.6;
+        const h0 = terrain.height(x, z);
+        const curv = (terrain.height(x + e, z) + terrain.height(x - e, z) + terrain.height(x, z + e) + terrain.height(x, z - e)) / 4 - h0;
+        const top = smoothstep(0, -0.32, curv) * look.formShade;
+        const crease = smoothstep(0, 0.32, curv) * look.formShade;
+        r = mix(r, PALETTE.warm[0], top * 0.2);
+        g = mix(g, PALETTE.warm[1], top * 0.16);
+        b = mix(b, PALETTE.warm[2], top * 0.1);
+        r *= 1 - crease * 0.3;
+        g *= 1 - crease * 0.17;
+        b *= 1 - crease * 0.06;
       }
       if (look.valleyShade > 0) {
         const low = smoothstep(2.2, 0, terrain.height(x, z) - (look.baseline?.(z) ?? 0));

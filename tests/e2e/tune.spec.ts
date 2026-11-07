@@ -121,10 +121,11 @@ test.describe('demo', () => {
   });
 
   test('one press records a real video of the demo, without the interface, then restores it', async ({ page }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(120_000);
     await open(page, 'fixed&tufts=20000');
     await page.keyboard.press('t');
-    const downloading = page.waitForEvent('download', { timeout: 40_000 });
+    // a 20-second recording; the headroom is for a busy machine, where the full suite once ran it past 40 s
+    const downloading = page.waitForEvent('download', { timeout: 75_000 });
     await page.getByRole('button', { name: 'Record 20-second demo' }).click();
     await expect(page.getByRole('button', { name: 'Reset' })).toBeHidden();
     const download = await downloading;

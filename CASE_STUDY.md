@@ -73,6 +73,15 @@ Strand size mattered as much as shape. When distant strands were as big on scree
 
 The screen-distributed tufts paid off here without changes: only surfaces a ray can reach get grass, so hidden valleys cost nothing. Rays needed marching to find the first hill rather than the last. A stroke's ink keeps the height where the pointer really touched, so a line crossing a crest stays straight on screen. A test sweeping window shapes found sky showing at the top corners in portrait, which was fixed in the framing.
 
+A second pass added depth that the first lacked. The changes:
+
+- Atmosphere by true distance from the eye, per strand, instead of by position in the world. Contrast and saturation fade before colour, so each crest stands out against the hazier hill behind it.
+- A slightly richer, more saturated foreground.
+- Light on rounded hilltops and cool shade in the creases, taken from the land's curvature.
+- Stronger side light and cast shadows, taller ridges and a slightly wider lens.
+
+![Before and after the depth pass](docs/media/hills-depth-before-after.jpg)
+
 The meadow's snapshots passed unchanged throughout, which is how it stayed exactly as it was.
 
 ## Performance

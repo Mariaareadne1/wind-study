@@ -136,7 +136,7 @@ export function meadowHeight(n: (x: number, y: number) => number, x: number, z: 
 
 /** How much the land has climbed by a given depth, before any individual hill. */
 export function hillsClimb(z: number): number {
-  return 9.5 * smooth(16, -33, z);
+  return 9 * smooth(16, -33, z);
 }
 
 /** One long hill: a crest wandering across the view, with saddles along it. */
@@ -153,12 +153,12 @@ function ridge(n: (x: number, y: number) => number, x: number, z: number, z0: nu
  */
 export function hillsHeight(n: (x: number, y: number) => number, x: number, z: number): number {
   let h = hillsClimb(z);
-  h += ridge(n, x, z, 13, 1.7, 3.6, 0.4);
-  h += ridge(n, x, z, 5, 2.7, 3.0, 1.7);
-  h += ridge(n, x, z, -3, 3.1, 3.0, 3.1);
-  h += ridge(n, x, z, -11, 3.4, 3.0, 4.6);
-  h += ridge(n, x, z, -19, 3.7, 3.1, 2.2);
-  h += ridge(n, x, z, -28, 5.5, 3.8, 5.9);
+  h += ridge(n, x, z, 13, 2.0, 3.6, 0.4);
+  h += ridge(n, x, z, 5, 3.6, 3.0, 1.7);
+  h += ridge(n, x, z, -3, 4.2, 3.0, 3.1);
+  h += ridge(n, x, z, -11, 4.6, 3.0, 4.6);
+  h += ridge(n, x, z, -19, 5.0, 3.1, 2.2);
+  h += ridge(n, x, z, -28, 6.5, 3.8, 5.9);
   h += 0.5 * fbm(n, x * 0.07, z * 0.07, 2);
   return h;
 }

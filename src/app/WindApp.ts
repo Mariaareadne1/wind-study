@@ -123,9 +123,12 @@ export class WindApp {
     this.uniforms.uBend.value = this.windTex.bend;
     this.uniforms.uFlow.value = this.windTex.flow;
     this.uniforms.uTime = this.timeUniform;
+    const haze = this.profile.haze;
+    this.uniforms.uHaze.value.set(haze.color[0], haze.color[1], haze.color[2], haze.amount);
+    this.uniforms.uHazeRange.value.set(haze.near, haze.far);
 
     this.grass = new GrassField(this.uniforms);
-    const ground = buildGround(this.terrain, this.painting, this.uniforms.uFlow, this.uniforms.uFieldRect);
+    const ground = buildGround(this.terrain, this.painting, this.uniforms.uFlow, this.uniforms.uFieldRect, this.uniforms);
     this.groundDispose = ground.dispose;
     this.flowers = new Flowers(this.uniforms);
     this.scene.add(ground.mesh, this.grass.mesh, this.flowers.mesh);

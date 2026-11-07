@@ -29,3 +29,19 @@ vec3 shadeCloud(vec3 col, float amount) {
   return mix(col, col * vec3(0.84, 0.89, 0.93), amount * 0.8);
 }
 `;
+
+export const HAZE_GLSL = /* glsl */ `
+/** Atmosphere by true distance from the eye, so every crest stands out against the hazier hill behind it. */
+vec3 applyHaze(vec3 col, float dist, vec4 haze, vec2 range) {
+  if (haze.a <= 0.0) return col;
+  float k = smoothstep(range.x, range.y, dist);
+  float f = haze.a * k * k * (1.4 - 0.4 * k);
+  // the nearest land is richer than the painting's average: it sits in front of everything
+  float near = 1.0 - smoothstep(range.x * 0.55, range.x * 1.1, dist);
+  col = mix(col, col * col * 1.55, near * 0.22 * haze.a);
+  // distance first takes the contrast and saturation, then the colour itself
+  float lum = dot(col, vec3(0.3, 0.55, 0.15));
+  col = mix(col, vec3(lum) * 0.35 + col * 0.65, f * 0.8);
+  return mix(col, haze.rgb, f);
+}
+`;

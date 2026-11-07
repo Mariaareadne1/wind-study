@@ -7,12 +7,13 @@ import {
   Mesh,
   ShaderMaterial,
   type Texture,
+  Vector2,
   Vector3,
   Vector4,
 } from 'three';
 import { SUN } from '../scene/paint';
 import { BEND_GLSL } from './bend';
-import { CLOUD_SHADE_GLSL } from './clouds';
+import { CLOUD_SHADE_GLSL, HAZE_GLSL } from './clouds';
 import { STRANDS_PER_TUFT, type GrassBuffers } from './tufts';
 
 const SEGMENTS = 3;
@@ -50,6 +51,8 @@ uniform vec4 uFieldRect; // minX, minZ, 1/width, 1/depth
 uniform float uTime;
 uniform vec3 uCamPos;
 uniform vec3 uSun;
+uniform vec4 uHaze;
+uniform vec2 uHazeRange;
 uniform float uWidthScale;
 uniform float uBendGain;
 uniform float uFlutter;
@@ -58,6 +61,7 @@ out float vSide;
 out float vT;
 ${BEND_GLSL}
 ${CLOUD_SHADE_GLSL}
+${HAZE_GLSL}
 
 void main() {
   float t = position.y;
@@ -123,6 +127,7 @@ void main() {
 
   // the cloud shadow is computed once per field texel, in the flow texture
   col = shadeCloud(col, flow.a);
+  col = applyHaze(col, length(uCamPos - world), uHaze, uHazeRange);
 
   vColor = col;
   vSide = side;
@@ -154,6 +159,8 @@ export interface GrassUniforms {
   uTime: { value: number };
   uCamPos: { value: Vector3 };
   uSun: { value: Vector3 };
+  uHaze: { value: Vector4 };
+  uHazeRange: { value: Vector2 };
   uWidthScale: { value: number };
   uBendGain: { value: number };
   uFlutter: { value: number };
@@ -167,6 +174,8 @@ export function makeGrassUniforms(fieldRect: Vector4, sun: readonly [number, num
     uTime: { value: 0 },
     uCamPos: { value: new Vector3() },
     uSun: { value: new Vector3(sun[0], 0, sun[2]).normalize() },
+    uHaze: { value: new Vector4(0, 0, 0, 0) },
+    uHazeRange: { value: new Vector2(30, 90) },
     uWidthScale: { value: 1 },
     uBendGain: { value: 1 },
     uFlutter: { value: 1 },
