@@ -16,5 +16,6 @@ for (let i = 0; i < queries.length; i++) {
   await p.close();
 }
 await b.close();
-execFileSync(ffmpeg, ['-y', '-loglevel', 'error', ...files.flatMap((f) => ['-i', f]), '-filter_complex', `${files.map((_, i) => `[${i}:v]`).join('')}hstack=inputs=${files.length}`, '-frames:v', '1', out]);
+if (files.length === 1) execFileSync(ffmpeg, ['-y', '-loglevel', 'error', '-i', files[0], out]);
+else execFileSync(ffmpeg, ['-y', '-loglevel', 'error', ...files.flatMap((f) => ['-i', f]), '-filter_complex', `${files.map((_, i) => `[${i}:v]`).join('')}hstack=inputs=${files.length}`, '-frames:v', '1', out]);
 console.log(out);

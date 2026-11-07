@@ -34,7 +34,7 @@ export function hillsFramingFor(aspect: number): Framing {
   const limit = aspect > 1.9 ? 1.9 / aspect : 1;
   return {
     fov: mix(42, 32, wide) * limit,
-    pitch: (Math.PI / 180) * mix(29, 15, wide),
+    pitch: (Math.PI / 180) * mix(23, 15, wide),
     distance: mix(33, 35, wide),
     targetZ: mix(-3, -7, wide),
     targetY: mix(3, 4.2, wide),
