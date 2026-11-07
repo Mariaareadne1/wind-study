@@ -90,8 +90,10 @@ button:disabled { opacity: 0.42; cursor: default; }
 .tune .demo { display: block; margin: 6px 0 0 -8px; font-weight: 600; }
 .tune .close { display: block; margin-top: 0; }
 
-.scenes { display: flex; gap: 14px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid rgba(23, 41, 28, 0.18); font-size: 13px; }
-.scenes a { color: var(--ink-soft); text-decoration: none; padding: 4px 0; font-weight: 450; }
-.scenes a:hover { text-decoration: underline; text-underline-offset: 3px; }
-.scenes a[aria-current='page'] { color: var(--ink); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
-.scenes a:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* the version switch sits centred at the top, on the painting */
+.scene-switch { position: absolute; top: max(15px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); margin-top: var(--mat); pointer-events: auto; }
+.scene-switch button { font-size: 13px; }
+@media (max-width: 640px) {
+  .scene-switch { left: max(10px, env(safe-area-inset-left)); transform: none; top: max(56px, calc(env(safe-area-inset-top) + 44px)); margin-left: var(--mat); }
+}

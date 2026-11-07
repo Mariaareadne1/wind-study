@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { DEFAULT_TUNING, type Tuning } from './tuning';
+import type { SceneId } from '../scene/profiles';
 
 export type Strength = 'breeze' | 'gust' | 'gale';
 export const STRENGTH_GAIN: Record<Strength, number> = { breeze: 0.62, gust: 1, gale: 1.5 };
@@ -22,6 +23,8 @@ export interface AppState {
   tuneOpen: boolean;
   /** A scripted 20-second demo is playing. */
   demo: boolean;
+  /** Which version is showing. Switching rebuilds the scene; the wind settings and border carry over. */
+  scene: SceneId;
 }
 
 const INITIAL: AppState = {
@@ -40,6 +43,7 @@ const INITIAL: AppState = {
   framed: false,
   tuneOpen: false,
   demo: false,
+  scene: 'meadow',
 };
 
 export class Store {

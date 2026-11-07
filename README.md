@@ -19,7 +19,7 @@ Draw a line across a hand-painted meadow. The line fades, but its force stays: a
 
 ![Hills mid-gust](docs/media/hills-gust.jpg)
 
-Switch in the Tune panel. Wind, grass, tuning, border and capture are shared; `src/scene/profiles.ts` holds what differs.
+Switch with **Meadow · Hills** at the top of the screen, or the V key. It swaps in place, keeping your wind settings and border, so you can record each version back to back. Wind, grass, tuning, border and capture are shared; `src/scene/profiles.ts` holds what differs.
 
 ## Run it
 
@@ -45,6 +45,7 @@ npm run build && npm run preview   # production build on http://localhost:4428
 | Capture (S) | Saves a PNG without the interface |
 | Record | Saves a video of the canvas (MP4 or WebM, depending on the browser) |
 | Hide (H) | Hides the interface |
+| Meadow · Hills (V) | Switch version in place |
 | Tune (T) | Less / Default / More, six sliders, painted border, one-press demo recording |
 | 1, 2, 3, 4 | A sweep, spiral, flick or crossing gusts, without a pointer |
 
@@ -52,14 +53,14 @@ npm run build && npm run preview   # production build on http://localhost:4428
 
 ## Tuning and demos
 
-Every setting is a multiplier on the design, so 100% is always the default. Settings persist between visits; Reset restores the defaults. Double-click a slider to reset just that one. Any look can be shared by URL:
+Every setting is a multiplier on the design, so 100% is always the default. Settings persist between visits; Reset restores the default wind and grass, and leaves the border as you set it. Double-click a slider to reset just that one. Any look can be shared by URL:
 
 | URL | Result |
 | --- | --- |
 | `/?preset=less`, `/?preset=more` | The grass barely stirs, or is thrown about |
 | `/?lean=1.3&linger=2` | Individual settings: `force`, `lean`, `sway`, `linger`, `flutter`, `breeze` |
 | `/?scene=hills` | The hills version; combines with everything else here |
-| `/?frame=1` | Painted paper border. It appears in captures and recordings too. |
+| `/?frame=0`, `/?frame=1` | Turn the painted paper border off or on. It's on by default and appears in captures and recordings. |
 | `/?demo` | Starts with the interface hidden, for screen recording. H brings it back. |
 
 Tune → **Record 20-second demo** plays the scripted film and saves a video at the window's size. For exact sizes, render offline through the real renderer (needs the dev server):

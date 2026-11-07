@@ -525,7 +525,7 @@ export class WindApp {
     this.sim.step();
     this.sim.step();
     this.setPaused(false);
-    this.store.set({ active: 0, strength: 'gust', hint: true, tuning: DEFAULT_TUNING, framed: false, demo: false });
+    this.store.set({ active: 0, strength: 'gust', hint: true, tuning: DEFAULT_TUNING, demo: false });
   }
 
   private onContextLost = (e: Event): void => {

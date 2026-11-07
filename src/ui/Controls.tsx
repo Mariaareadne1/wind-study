@@ -4,11 +4,17 @@ import { saveRecording, saveStill, startRecording, type ActiveRecording } from '
 import { type Store, type Strength, useStore } from '../state/store';
 import { DEMO_SECONDS, type PatternName } from '../wind/patterns';
 import { TunePanel } from './TunePanel';
+import type { SceneId } from '../scene/profiles';
 
 const STRENGTHS: { id: Strength; label: string; tip: string }[] = [
   { id: 'breeze', label: 'Breeze', tip: 'Gentle wind' },
   { id: 'gust', label: 'Gust', tip: 'Medium wind' },
   { id: 'gale', label: 'Gale', tip: 'Strong wind' },
+];
+
+const SCENES: { id: SceneId; label: string; tip: string }[] = [
+  { id: 'meadow', label: 'Meadow', tip: 'The patchwork, seen from above' },
+  { id: 'hills', label: 'Hills', tip: 'Rolling hills, seen from low down' },
 ];
 
 const PATTERNS: { key: string; name: PatternName; label: string }[] = [
@@ -136,6 +142,7 @@ export function Controls({ store, app }: Props) {
       else if (e.key === 'h' || e.key === 'H') store.set({ uiHidden: !st.uiHidden });
       else if (e.key === 's' || e.key === 'S') void capture();
       else if (e.key === '?') store.set({ helpOpen: !st.helpOpen, tuneOpen: false });
+      else if ((e.key === 'v' || e.key === 'V') && !st.recording && !st.loading) store.set({ scene: st.scene === 'hills' ? 'meadow' : 'hills' });
       else if (e.key === 't' || e.key === 'T') store.set({ tuneOpen: !st.tuneOpen, helpOpen: false });
     };
     window.addEventListener('keydown', onKey);
@@ -162,8 +169,24 @@ export function Controls({ store, app }: Props) {
         <p>Draw the invisible.</p>
       </header>
 
+      <div className="segmented scene-switch" role="radiogroup" aria-label="Version">
+        {SCENES.map((o) => (
+          <button
+            key={o.id}
+            role="radio"
+            aria-checked={s.scene === o.id}
+            className={s.scene === o.id ? 'on' : ''}
+            disabled={s.recording || s.loading}
+            title={s.recording ? 'Stop recording to switch' : `${o.tip} (V)`}
+            onClick={() => store.set({ scene: o.id })}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+
       <nav className="corner top-right" aria-label="Scene">
-        <button disabled={off} onClick={() => app?.resetScene()} title="Restore the original meadow (R)">Reset</button>
+        <button disabled={off} onClick={() => app?.resetScene()} title="Calm the wind and restore the default settings (R)">Reset</button>
         <button onClick={() => store.set({ tuneOpen: !s.tuneOpen, helpOpen: false })} aria-expanded={s.tuneOpen} title="Adjust the wind and the grass (T)">Tune</button>
         <button onClick={() => store.set({ helpOpen: !s.helpOpen, tuneOpen: false })} aria-expanded={s.helpOpen} title="Controls and shortcuts (?)">Help</button>
       </nav>
@@ -221,6 +244,7 @@ export function Controls({ store, app }: Props) {
             <dt>Space</dt><dd>Pause</dd>
             <dt>Z</dt><dd>Undo the latest gust</dd>
             <dt>C</dt><dd>Clear drawn wind</dd>
+            <dt>V</dt><dd>Switch Meadow and Hills</dd>
             <dt>T</dt><dd>Tune the wind and grass</dd>
             <dt>R</dt><dd>Reset</dd>
             <dt>S</dt><dd>Capture a still</dd>

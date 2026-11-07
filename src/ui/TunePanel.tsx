@@ -19,13 +19,8 @@ export function TunePanel({ store, onDemo, demoDisabled }: Props) {
   const active = presetOf(tuning);
   const set = (key: TuningKey, value: number) => store.set({ tuning: { ...tuning, [key]: value } });
 
-  const scene = new URLSearchParams(location.search).get('scene') === 'hills' ? 'hills' : 'meadow';
   return (
     <aside className="help tune" aria-label="Tune the wind and grass">
-      <nav className="scenes" aria-label="Version">
-        <a href="?" aria-current={scene === 'meadow' ? 'page' : undefined}>Meadow</a>
-        <a href="?scene=hills" aria-current={scene === 'hills' ? 'page' : undefined}>Hills</a>
-      </nav>
       <div className="segmented presets" role="radiogroup" aria-label="How much the grass is affected">
         {PRESET_LABELS.map((p) => (
           <button

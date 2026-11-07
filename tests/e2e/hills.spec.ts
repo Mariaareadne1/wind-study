@@ -113,14 +113,50 @@ test.describe('the hills version', () => {
     expect(r.peak).toBeLessThan(2.6);
   });
 
-  test('the Tune panel links the two versions', async ({ page }) => {
+  test('the on-screen switch changes version in place, keeping the border and settings', async ({ page }) => {
     await open(page, 'fixed&tufts=4000');
+    // the border is on by default
+    expect(await page.evaluate(() => window.__wind!.store.get().framed)).toBe(true);
     await page.keyboard.press('t');
-    await page.getByRole('link', { name: 'Hills' }).click();
-    await page.waitForFunction(() => window.__wind && window.__wind.app.profile.id === 'hills');
-    await page.keyboard.press('t');
-    await expect(page.getByRole('link', { name: 'Hills' })).toHaveAttribute('aria-current', 'page');
-    await page.getByRole('link', { name: 'Meadow' }).click();
-    await page.waitForFunction(() => window.__wind && window.__wind.app.profile.id === 'meadow');
+    await page.getByRole('radio', { name: 'More' }).click();
+    await page.keyboard.press('Escape');
+    const before = await page.evaluate(() => window.__wind!.app);
+    void before;
+    await page.getByRole('radio', { name: 'Hills' }).click();
+    await page.waitForFunction(() => window.__wind && window.__wind.app.profile.id === 'hills' && !window.__wind.store.get().loading);
+    expect(page.url()).toContain('scene=hills');
+    const kept = await page.evaluate(() => ({ framed: window.__wind!.store.get().framed, lean: window.__wind!.store.get().tuning.lean, nav: performance.getEntriesByType('navigation').length }));
+    expect(kept.framed).toBe(true);
+    expect(kept.lean).toBe(1.7);
+    // drawing works in the new version
+    await page.mouse.move(400, 500);
+    await page.mouse.down();
+    await page.mouse.move(700, 480, { steps: 6 });
+    await page.mouse.up();
+    expect(await page.evaluate(() => window.__wind!.app.sim.gusts.length)).toBeGreaterThan(0);
+    // and back, by key
+    await page.keyboard.press('v');
+    await page.waitForFunction(() => window.__wind && window.__wind.app.profile.id === 'meadow' && !window.__wind.store.get().loading);
+    expect(page.url()).not.toContain('scene=');
+    await expect(page.getByRole('radio', { name: 'Meadow' })).toHaveAttribute('aria-checked', 'true');
+  });
+
+  test('switching back and forth leaves no GPU leftovers', async ({ page }) => {
+    await open(page, 'fixed&tufts=4000');
+    const mem = () => page.evaluate(() => ({ ...window.__wind!.app.renderer.info.memory }));
+    const switchTo = async (id: string) => {
+      await page.evaluate((id) => window.__wind!.store.set({ scene: id as 'meadow' | 'hills' }), id);
+      await page.waitForFunction((id) => window.__wind && window.__wind.app.profile.id === id && !window.__wind.store.get().loading && window.__wind.app.renderer.info.render.frame > 3, id);
+    };
+    await switchTo('hills');
+    await switchTo('meadow');
+    const first = await mem();
+    for (let i = 0; i < 3; i++) {
+      await switchTo('hills');
+      await switchTo('meadow');
+    }
+    const after = await mem();
+    expect(after.geometries).toBeLessThanOrEqual(first.geometries);
+    expect(after.textures).toBeLessThanOrEqual(first.textures);
   });
 });

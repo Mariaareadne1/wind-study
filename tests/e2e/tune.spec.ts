@@ -54,13 +54,15 @@ test.describe('tuning', () => {
     await open(page, 'fixed&tufts=4000');
     await page.keyboard.press('t');
     await page.getByRole('radio', { name: 'Less' }).click();
-    await page.getByRole('checkbox', { name: 'Painted border' }).check();
+    // the border starts on; turning it off must stick
+    await expect(page.getByRole('checkbox', { name: 'Painted border' })).toBeChecked();
+    await page.getByRole('checkbox', { name: 'Painted border' }).uncheck();
     await page.reload();
     await page.waitForFunction(() => window.__wind && !window.__wind.store.get().loading);
     const kept = await page.evaluate(() => ({ lean: window.__wind!.store.get().tuning.lean, framed: window.__wind!.store.get().framed }));
-    expect(kept).toEqual({ lean: 0.35, framed: true });
+    expect(kept).toEqual({ lean: 0.35, framed: false });
 
-    await page.evaluate(() => localStorage.setItem('wind-study-tuning-v1', '{"tuning":{"lean":"bad","force":999}'));
+    await page.evaluate(() => localStorage.setItem('wind-study-tuning-v2', '{"tuning":{"lean":"bad","force":999}'));
     await page.reload();
     await page.waitForFunction(() => window.__wind && !window.__wind.store.get().loading);
     expect(await page.evaluate(() => window.__wind!.store.get().tuning.lean)).toBe(1);

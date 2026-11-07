@@ -67,16 +67,19 @@ export function tuningFromQuery(q: URLSearchParams, base: Tuning): Tuning {
   return sanitizeTuning(start);
 }
 
-const STORAGE_KEY = 'wind-study-tuning-v1';
+// v2: the painted border became the default
+const STORAGE_KEY = 'wind-study-tuning-v2';
+/** The border is on unless someone turns it off. */
+export const DEFAULT_FRAMED = true;
 
 export function loadStored(): { tuning: Tuning; framed: boolean } {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { tuning: { ...DEFAULT_TUNING }, framed: false };
+    if (!raw) return { tuning: { ...DEFAULT_TUNING }, framed: DEFAULT_FRAMED };
     const parsed = JSON.parse(raw) as { tuning?: unknown; framed?: unknown };
-    return { tuning: sanitizeTuning(parsed.tuning), framed: parsed.framed === true };
+    return { tuning: sanitizeTuning(parsed.tuning), framed: typeof parsed.framed === 'boolean' ? parsed.framed : DEFAULT_FRAMED };
   } catch {
-    return { tuning: { ...DEFAULT_TUNING }, framed: false };
+    return { tuning: { ...DEFAULT_TUNING }, framed: DEFAULT_FRAMED };
   }
 }
 
