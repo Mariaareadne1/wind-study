@@ -1,7 +1,7 @@
 import { framingFor, hillsFramingFor, sunlitFramingFor, type Framing } from './framing';
 import type { CloudSpec } from './Clouds';
 import { HILL_PATCHES, PATCHES, SUN, SUNLIT_PATCHES, type FieldPatch } from './paint';
-import { hillsClimb, hillsHeight, meadowHeight, sunlitHeight, type HeightFn } from './terrain';
+import { hillsClimb, hillsHeight, meadowHeight, sunlitClimb, sunlitHeight, type HeightFn } from './terrain';
 
 export type SceneId = 'meadow' | 'hills' | 'sunlit';
 
@@ -64,6 +64,8 @@ export interface SceneProfile {
   long?: { length: number; width: number; troughs?: number; silver?: number };
   clouds?: readonly CloudSpec[];
   flowers?: { flowers: number; seedHeads: number };
+  /** The land's general slope without its waves, so wave fronts can be told from the climb. */
+  baseline?: (z: number) => number;
   /** Long blades swing their tips further for the same breeze: scale the idle motion down. */
   motion?: { breeze: number; flutter: number };
   /** A rider on the track: its centre line, and where the ride starts and ends. */
@@ -123,7 +125,7 @@ export const SUNLIT: SceneProfile = {
     valleyShade: 0,
     patchSharpness: 0.6,
   },
-  grass: { refDist: 30, sizeExponent: 0.25, sizeScale: 0.85, density: 1.2, screenBias: 0.75, combJitter: 0, gustWidth: 1 },
+  grass: { refDist: 30, sizeExponent: 0.25, sizeScale: 0.85, density: 1.1, screenBias: 0.75, combJitter: 0, gustWidth: 1 },
   screenPatterns: true,
   haze: { color: [0.5, 0.6, 0.46], near: 34, far: 90, amount: 0.22 },
   realistic: {
@@ -132,10 +134,11 @@ export const SUNLIT: SceneProfile = {
     skyColor: [0.4, 0.54, 0.7],
     finish: { lift: 0, grain: 0.15, saturation: 0.92, soften: 0, exposure: 1 },
   },
-  long: { length: 7, width: 0.5, troughs: 0.86, silver: 0.12 },
+  long: { length: 6.5, width: 0.48, troughs: 0.86, silver: 0.12 },
   clouds: [],
   flowers: { flowers: 0, seedHeads: 0 },
   motion: { breeze: 0.4, flutter: 0.35 },
+  baseline: sunlitClimb,
 };
 
 export function profileFor(id: string | null): SceneProfile {

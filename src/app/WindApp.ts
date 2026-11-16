@@ -195,7 +195,7 @@ export class WindApp {
 
   private get swirl(): ReturnType<typeof makeSwirl> {
     // linear-light scenes comb their grass along the land; the earlier look used painted eddies
-    this.swirlFn ??= this.profile.realistic?.finish.exposure ? makeFlow(this.seed, (x, z) => this.terrain.height(x, z)) : makeSwirl(this.seed);
+    this.swirlFn ??= this.profile.realistic?.finish.exposure ? makeFlow(this.seed, (x, z) => this.terrain.height(x, z), this.profile.baseline) : makeSwirl(this.seed);
     return this.swirlFn;
   }
 

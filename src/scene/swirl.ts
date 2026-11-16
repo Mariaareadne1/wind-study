@@ -11,6 +11,8 @@ export interface Lay {
   z: number;
   lean: number;
   streak: number;
+  /** Multiplies blade length here (1 when unset). */
+  length?: number;
 }
 
 interface Eddy {
@@ -77,7 +79,7 @@ export function makeSwirl(seed: number): (x: number, z: number) => Lay {
  * into one prevailing breeze where the ground is flat, with only slow, broad
  * wandering on top. Neighbouring blades always agree; nothing curls tightly.
  */
-export function makeFlow(seed: number, height: (x: number, z: number) => number): (x: number, z: number) => Lay {
+export function makeFlow(seed: number, height: (x: number, z: number) => number, baseline: (z: number) => number = () => 0): (x: number, z: number) => Lay {
   const wander: Noise2 = makeNoise(seed + 511);
   const lanes: Noise2 = makeNoise(seed + 512);
   const tilt: Noise2 = makeNoise(seed + 513);
@@ -97,21 +99,32 @@ export function makeFlow(seed: number, height: (x: number, z: number) => number)
     }
     const cl = Math.hypot(cx, cz) || 1;
     const follow = smoothstep(0.04, 0.4, slope);
+    // the wave fronts facing the viewer (height falling toward +z) carry long grass that spills over the edge;
+    // crests and backs stay short and fine
+    // only the steepest band of each front: fronts face the camera, so they fill much of the frame
+    // measured on the waves alone: the slope they ride on falls toward the viewer everywhere
+    const waveDz = dz - (baseline(z + e) - baseline(z - e)) / (2 * e);
+    const face = smoothstep(0.25, 0.75, -waveDz);
+    const downX = -dx / (slope || 1);
+    const downZ = -dz / (slope || 1);
     const pot = (px: number, pz: number) => fbm(wander, px * 0.035, pz * 0.035, 2);
     const curlX = (pot(x, z + 1) - pot(x, z - 1)) * 0.5;
     const curlZ = -(pot(x + 1, z) - pot(x - 1, z)) * 0.5;
-    let fx = (cx / cl) * follow * 1.6 + gx * (1 - follow * 0.75) + curlX * 6;
-    let fz = (cz / cl) * follow * 1.6 + gz * (1 - follow * 0.75) + curlZ * 6;
+    let fx = (cx / cl) * follow * 1.6 + gx * (1 - follow * 0.75) + curlX * 6 + downX * face * 0.15;
+    let fz = (cz / cl) * follow * 1.6 + gz * (1 - follow * 0.75) + curlZ * 6 + downZ * face * 0.15;
     const l = Math.hypot(fx, fz) || 1;
     fx /= l;
     fz /= l;
     const along = x * fx + z * fz;
     const across = -x * fz + z * fx;
     const lane = fbm(lanes, along * 0.06, across * 0.3, 2);
-    const streak = 0.84 + 0.32 * smoothstep(-0.35, 0.35, lane);
-    // blades lie well over, a little more on the steep faces, never a hard change
-    // upright, tufty grass on the flat; swept over on the waves' slopes
-    const lean = 0.5 + 0.35 * fbm(tilt, x * 0.08, z * 0.08, 2) + 1.25 * follow;
-    return { x: fx, z: fz, lean, streak };
+    // long swept grass on the steep fronts shows faint pale lanes; elsewhere the surface is even
+    const streak = 0.84 + (0.32 + 0.2 * face) * smoothstep(-0.35, 0.35, lane);
+    // From this low camera, upright blades are seen side-on at full length and lying ones are
+    // foreshortened, so lying over is what keeps the surface fine. Steep fronts lie over a little more.
+    const lean = 0.5 + 0.35 * fbm(tilt, x * 0.08, z * 0.08, 2) + 1.25 * follow + 0.25 * face;
+    // grass is a little longer only down the steepest band of each front, never a hard change
+    const length = 1 + 0.22 * face;
+    return { x: fx, z: fz, lean, streak, length };
   };
 }

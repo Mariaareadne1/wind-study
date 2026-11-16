@@ -179,10 +179,15 @@ export function sunlitPath(x: number, z: number): number {
  * troughs fall into real shade. Calm and flat in the foreground, building up the
  * slope, which keeps rising until it fills the frame.
  */
+/** The plain slope the sunlit waves ride on, without the waves. */
+export function sunlitClimb(z: number): number {
+  const k = (12 - z) / 5;
+  return 2.2 * (k > 12 ? k : Math.log(1 + Math.exp(k)));
+}
+
 export function sunlitHeight(n: (x: number, y: number) => number, x: number, z: number): number {
   // the slope the waves ride on
-  const k = (12 - z) / 5;
-  const climb = 2.2 * (k > 12 ? k : Math.log(1 + Math.exp(k)));
+  const climb = sunlitClimb(z);
   // waves build from nothing in the foreground to full size up the slope
   const build = smooth(15, 3, z);
   // ridge lines wander: a slow bend across the view and a little noise, never straight, never tight

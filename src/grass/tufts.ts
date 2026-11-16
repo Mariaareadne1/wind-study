@@ -38,7 +38,7 @@ export interface GrassOptions {
 }
 
 export interface LongGrass {
-  lay: (x: number, z: number) => { x: number; z: number; lean: number; streak: number };
+  lay: (x: number, z: number) => { x: number; z: number; lean: number; streak: number; length?: number };
   /** Multiplies strand length. */
   length: number;
   /** Multiplies strand width. */
@@ -176,6 +176,9 @@ export function buildGrass(terrain: Terrain, paint: Painting, rays: ScreenRays, 
 
     const long = opts.long;
     const lay = long ? long.lay(cx, cz) : null;
+    // linear-light grass (the photographic scene) records how swept each blade is, for its sky sheen
+    const clumped = !!long && long.troughs !== undefined;
+
 
     for (let k = 0; k < STRANDS_PER_TUFT; k++) {
       // a sunflower disc gives an even dome with no two tufts alike
@@ -208,8 +211,8 @@ export function buildGrass(terrain: Terrain, paint: Painting, rays: ScreenRays, 
         const lying = mix(0.3, 1, smoothstep(0.2, 0.75, patchTall));
         const lean = (under ? 0.55 : 1) * lay.lean * lying * (0.9 + 0.2 * ((k * 0.618) % 1));
         // short fields stay short: length falls away faster than the patch height
-        shape[s * 4] = (h / Math.max(0.78 + 0.34 * crown, 0.01)) * long.length * (under ? 0.7 : 1) * Math.min(1, patchTall);
-        shape[s * 4 + 1] *= long.width * mix(0.6, 1, smoothstep(0.2, 0.75, patchTall));
+        shape[s * 4] = (h / Math.max(0.78 + 0.34 * crown, 0.01)) * long.length * (lay.length ?? 1) * (under ? 0.7 : 1) * Math.min(1, patchTall);
+        shape[s * 4 + 1] *= long.width * mix(0.6, 1, smoothstep(0.2, 0.75, patchTall)) * (clumped ? 1 + 0.12 * smoothstep(1, 1.6, lay.length ?? 1) : 1);
         shape[s * 4 + 2] = lx * lean + ax * fan * 0.15;
         shape[s * 4 + 3] = lz * lean + az * fan * 0.15;
       }
@@ -226,7 +229,7 @@ export function buildGrass(terrain: Terrain, paint: Painting, rays: ScreenRays, 
         const crest = clamp((lay.streak - 0.5) / 0.85 + (rng() - 0.5) * 0.12, 0, 1);
         // from the field's own pigment: in long grass, neighbouring blades vary only a little
         // in linear-light grass each blade keeps a natural spread of brightness; in the earlier look, little
-        const vary = 1 + (tone - 1) * (long?.troughs !== undefined ? 2.2 : 0.35);
+        const vary = 1 + (tone - 1) * (long?.troughs !== undefined ? 1.5 : 0.35);
         const pr = (pigment2[0] / 255) * vary;
         const pg = (pigment2[1] / 255) * vary;
         const pb = (pigment2[2] / 255) * vary;
@@ -240,6 +243,8 @@ export function buildGrass(terrain: Terrain, paint: Painting, rays: ScreenRays, 
         tint[s * 4 + 2] = clamp(mix(trough[2], silver[2], k) * 255, 0, 255);
       }
       tint[s * 4 + 3] = clamp((under ? 0.2 : wisp ? 0.95 : 0.55) * mix(0.75, 1.2, rng()) * 255, 0, 255);
+      // linear-light grass keeps how swept this blade is in that channel instead, for its sheen (after the line above)
+      if (clumped && lay) tint[s * 4 + 3] = clamp(((lay.length ?? 1) - 1.04) / 0.18, 0, 1) * 255;
 
       dyn[s * 4] = softness * 255;
       dyn[s * 4 + 1] = (gain / 2) * 255;

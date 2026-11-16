@@ -65,6 +65,7 @@ uniform float uFlutter;
 out vec3 vColor;
 out float vSide;
 out float vT;
+out float vSwept;
 ${BEND_GLSL}
 ${CLOUD_SHADE_GLSL}
 ${HAZE_GLSL}
@@ -151,6 +152,12 @@ void main() {
   // restrained fibre highlights and a little light through backlit tips
   lin += sunCol * (pow(sinTH, 160.0) * 0.16 + pow(sinTH, 24.0) * 0.045) * tl.g * sunVis * t * t;
   lin += albedo * vec3(0.9, 1.1, 0.4) * glow * tl.g * sunVis * 0.5;
+  // long swept blades are glossy: in shade they reflect the blue sky, which reads as silvery teal
+  float swept = aTint.a;
+  float grazing = pow(1.0 - abs(dot(normalize(cross(sideDir, tangent)), view)), 2.0);
+  lin += skyCol * swept * swept * t * (0.04 + 0.2 * grazing) * mix(1.0, 0.45, tl.g * sunVis);
+  lin = mix(lin, lin * vec3(0.8, 0.95, 1.15), swept * (1.0 - tl.g * sunVis * 0.7) * 0.6);
+  vSwept = swept;
   vColor = lin;
 #else
   vec3 col = base * skyCol * mix(0.35, 1.0, ao);
@@ -191,6 +198,9 @@ void main() {
 #endif
   vSide = side;
   vT = t;
+#ifndef LINEAR
+  vSwept = 0.0;
+#endif
   gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
 }
 `;
@@ -201,6 +211,7 @@ precision highp float;
 in vec3 vColor;
 in float vSide;
 in float vT;
+in float vSwept;
 out vec4 outColor;
 void main() {
   // soft edges through alpha-to-coverage, so there's no sorting and no hard line
@@ -208,8 +219,9 @@ void main() {
   float aa = max(fwidth(vSide), 1e-3);
 #ifdef LINEAR
   // fine blades: a crisp edge with a little feather, so each blade still reads on its own
-  float a = 1.0 - smoothstep(1.0 - aa * 2.5 - 0.15, 1.0, d);
-  a *= 1.0 - smoothstep(0.7, 1.0, vT) * 0.6;
+  // swept blades are softer, like grass caught moving; short blades keep a crisp edge
+  float a = 1.0 - smoothstep(mix(1.0 - aa * 2.5 - 0.15, 0.45, vSwept), 1.0, d);
+  a *= 1.0 - smoothstep(mix(0.7, 0.45, vSwept), 1.0, vT) * 0.6;
 #elif defined(REALISTIC)
   // long silky blades: a wide feather and a fading tip read as soft, slightly blurred grass
   float a = 1.0 - smoothstep(0.2, 1.0, d);

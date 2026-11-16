@@ -42,10 +42,18 @@ which renders `?compare&scene=sunlit` at the reference's exact 842×1582 frame. 
   natural albedos (`grass`, `gold`, `moss`).
 - Meadow and Hills are unchanged (their snapshots still match).
 
+### Grass pass 2
+- Wave fronts are told apart from the slope they ride on (`sunlitClimb`), and carry slightly longer, more swept grass
+  with a cool sky sheen and softer edges. Crests and backs stay short and fine.
+- Lessons from the bisect. From this low camera, lying blades are foreshortened and upright ones show their full
+  length, so lean controls apparent length. Fronts face the camera and fill about half the frame, so a strong front
+  effect changes half the picture.
+- Fixed: the per-blade "swept" value had been overwritten by an older random value, which softened every blade.
+
 ### Visual issues still open
-- Up close the grass is more combed than the target's tufty lawn.
-- The target's upper waves carry longer, swept grass with a silky blur; ours is uniform in length.
-- Frame cost is 16.3 ms median at 2880×1800 (432k strands), borderline for 60 fps.
+- Up close our blades are crisper and more brushed than the target's soft, slightly blurred grass.
+- Frame cost is about 16.5 ms median at 2880×1800 (450k strands, measured at load about 8). Density is now 1.1
+  (396k strands); its timing was taken at load 38 and isn't meaningful.
 
 ### Next, in order
 1. Final grass pass (length variation on wave crests, tuft clumping).
