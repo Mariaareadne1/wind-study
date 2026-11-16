@@ -53,6 +53,9 @@ uniform vec3 uCamPos;
 uniform vec3 uSun;
 uniform vec4 uHaze;
 uniform vec2 uHazeRange;
+uniform vec3 uSun3;
+uniform vec3 uSunColor;
+uniform vec3 uSkyColor;
 uniform float uWidthScale;
 uniform float uBendGain;
 uniform float uFlutter;
@@ -105,6 +108,33 @@ void main() {
   float prof = sqrt(max(1.0 - t * t * t, 0.0)) * (0.62 + 0.38 * smoothstep(0.0, 0.34, t));
   world += sideDir * side * aShape.y * uWidthScale * prof;
 
+#ifdef REALISTIC
+  // Sunlit fibres: hair-style lighting (diffuse by sine, a tight sheen and a broad one),
+  // light glowing through backlit blades, and deep shade down among the roots.
+  vec3 base = aTint.rgb;
+  vec3 L = uSun3;
+  vec3 T = tangent;
+  float TL = dot(T, L);
+  float fibre = sqrt(max(1.0 - TL * TL, 0.0));
+  vec3 H = normalize(L + view);
+  float TH = dot(T, H);
+  float sinTH = sqrt(max(1.0 - TH * TH, 0.0));
+  float sheen = pow(sinTH, 90.0) * 1.0 + pow(sinTH, 10.0) * 0.32;
+  float glow = pow(max(dot(-view, L), 0.0), 2.5) * t * t;
+  float ao = mix(0.12, 1.0, pow(t, 0.75));
+  // blades lying toward the sun are lit along their length; lying away, they shade each other
+  vec2 lieDir = length(A) > 1e-3 ? A / length(A) : vec2(0.0);
+  vec2 sunFlat = normalize(L.xz + vec2(1e-4));
+  float facing = clamp(0.72 + 0.62 * dot(lieDir, sunFlat), 0.15, 1.4);
+  float sunVis = 1.0 - flow.a;
+  vec3 sunCol = uSunColor;
+  vec3 skyCol = uSkyColor;
+  vec3 col = base * skyCol * mix(0.35, 1.0, ao);
+  col += base * sunCol * fibre * facing * sunVis * mix(0.25, 1.0, ao);
+  col += mix(sunCol, base * 1.6 + 0.25, 0.45) * sheen * sunVis * t * facing * 0.7;
+  col += base * vec3(1.05, 1.25, 0.45) * glow * sunVis * 0.9;
+  vColor = col;
+#else
   // Colour: all of the shimmer through the field comes from the fibres' own attitude.
   vec3 base = aTint.rgb;
   float tipLight = aTint.a;
@@ -130,6 +160,10 @@ void main() {
   col = applyHaze(col, length(uCamPos - world), uHaze, uHazeRange);
 
   vColor = col;
+#endif
+#ifdef REALISTIC
+  vColor = applyHaze(vColor, length(uCamPos - world), uHaze, uHazeRange);
+#endif
   vSide = side;
   vT = t;
   gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
@@ -161,6 +195,9 @@ export interface GrassUniforms {
   uSun: { value: Vector3 };
   uHaze: { value: Vector4 };
   uHazeRange: { value: Vector2 };
+  uSun3: { value: Vector3 };
+  uSunColor: { value: Vector3 };
+  uSkyColor: { value: Vector3 };
   uWidthScale: { value: number };
   uBendGain: { value: number };
   uFlutter: { value: number };
@@ -176,6 +213,9 @@ export function makeGrassUniforms(fieldRect: Vector4, sun: readonly [number, num
     uSun: { value: new Vector3(sun[0], 0, sun[2]).normalize() },
     uHaze: { value: new Vector4(0, 0, 0, 0) },
     uHazeRange: { value: new Vector2(30, 90) },
+    uSun3: { value: new Vector3(sun[0], sun[1], sun[2]).normalize() },
+    uSunColor: { value: new Vector3(1.3, 1.22, 1.0) },
+    uSkyColor: { value: new Vector3(0.36, 0.46, 0.5) },
     uWidthScale: { value: 1 },
     uBendGain: { value: 1 },
     uFlutter: { value: 1 },
@@ -189,8 +229,9 @@ export class GrassField {
   private geometry: InstancedBufferGeometry;
   private capacity = 0;
 
-  constructor(uniforms: GrassUniforms) {
+  constructor(uniforms: GrassUniforms, realistic = false) {
     this.material = new ShaderMaterial({
+      defines: realistic ? { REALISTIC: 1 } : {},
       glslVersion: '300 es' as never,
       vertexShader: VERT,
       fragmentShader: FRAG,

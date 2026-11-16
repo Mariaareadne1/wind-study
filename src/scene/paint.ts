@@ -16,6 +16,9 @@ export const PALETTE = {
   deep: hex('#6fb063'),
   cool: hex('#6a9a94'),
   warm: hex('#f6eba0'),
+  lime: hex('#c8e04a'),
+  emerald: hex('#a6d044'),
+  chartreuse: hex('#d4e45a'),
 } as const;
 
 type PaletteKey = keyof typeof PALETTE;
@@ -82,6 +85,16 @@ export const HILL_PATCHES: FieldPatch[] = [
   { x: 18, z: -29, sx: 1.8, sz: 0.45, rot: -0.03, color: 'spring', comb: 2.4, tall: 1 },
 ];
 
+/** The sunlit slope: saturated, nearly one colour, so light and shadow do the work. */
+export const SUNLIT_PATCHES: FieldPatch[] = [
+  { x: -16, z: -4, sx: 1.6, sz: 1, rot: 0.2, color: 'lime', comb: 0, tall: 1 },
+  { x: 10, z: -8, sx: 1.4, sz: 1, rot: -0.2, color: 'emerald', comb: 0, tall: 1 },
+  { x: -4, z: -22, sx: 2, sz: 0.8, rot: 0, color: 'lime', comb: 0, tall: 1 },
+  { x: 18, z: 4, sx: 1.2, sz: 0.8, rot: 0.1, color: 'chartreuse', comb: 0, tall: 0.95 },
+  { x: -20, z: 15, sx: 1.6, sz: 0.5, rot: 0, color: 'chartreuse', comb: 0, tall: 0.26 },
+  { x: 8, z: 16, sx: 1.6, sz: 0.5, rot: 0, color: 'chartreuse', comb: 0, tall: 0.26 },
+];
+
 /** Where the low sun sits. Shared with the grass shader so the bake and the fibres agree. */
 export const SUN = (() => {
   const v = [-0.62, 0.55, -0.56];
@@ -103,6 +116,9 @@ export interface PaintLook {
   patchSharpness: number;
   formShade?: number;
   shadowDepth?: number;
+  /** Where bare ground shows through (a path): 1 is bare. */
+  bare?: (x: number, z: number) => number;
+  bareColor?: readonly [number, number, number];
 }
 
 const DEFAULT_LOOK: PaintLook = { litGain: 3.6, airFrom: -8, airTo: -24, airAmount: 0.22, airColor: [0.84, 0.9, 0.76], castShadows: false, valleyShade: 0, patchSharpness: 2.2 };
@@ -291,6 +307,18 @@ export function buildPainting(terrain: Terrain, seed: number, opts: PaintOptions
       r = mix(r, look.airColor[0], air);
       g = mix(g, look.airColor[1], air);
       b = mix(b, look.airColor[2], air);
+
+      if (look.bare) {
+        const bare = look.bare(x, z);
+        if (bare > 0) {
+          const bc = look.bareColor ?? [0.72, 0.68, 0.45];
+          const grit = 1 + fbm(pigment, x * 1.7, z * 1.7, 2) * 0.12;
+          r = mix(r, bc[0] * grit, bare);
+          g = mix(g, bc[1] * grit, bare);
+          b = mix(b, bc[2] * grit, bare);
+          tall *= 1 - bare;
+        }
+      }
 
       const o = (i + j * width) * 4;
       pixels[o] = clamp(r, 0, 1) * 255;

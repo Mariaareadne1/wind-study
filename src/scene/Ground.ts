@@ -10,6 +10,7 @@ export function buildGround(
   flow: IUniform<Texture | null>,
   fieldRect: IUniform<Vector4>,
   haze: { uHaze: IUniform<Vector4>; uHazeRange: IUniform<Vector2> },
+  realistic = false,
 ): { mesh: Mesh; dispose: () => void } {
   const w = WORLD.maxX - WORLD.minX;
   const d = WORLD.maxZ - WORLD.minZ;
@@ -25,6 +26,7 @@ export function buildGround(
   tex.needsUpdate = true;
   const mat = new ShaderMaterial({
     glslVersion: '300 es' as never,
+    defines: realistic ? { REALISTIC: 1 } : {},
     uniforms: { uPaint: { value: tex }, uFlow: flow, uFieldRect: fieldRect, uHaze: haze.uHaze, uHazeRange: haze.uHazeRange },
     vertexShader: /* glsl */ `
       out vec2 vXZ;
@@ -48,7 +50,16 @@ export function buildGround(
       ${HAZE_GLSL}
       void main() {
         vec2 uv = (vXZ - vec2(${WORLD.minX.toFixed(1)}, ${WORLD.minZ.toFixed(1)})) / vec2(${w.toFixed(1)}, ${d.toFixed(1)});
-        vec3 c = texture(uPaint, uv).rgb;
+        vec4 paint = texture(uPaint, uv);
+        vec3 c = paint.rgb;
+#ifdef REALISTIC
+        // bare ground (the track) shows in full sun; under the grass it's deep shade
+        float bare = 1.0 - smoothstep(0.02, 0.12, paint.a);
+        float shade = texture(uFlow, (vXZ - uFieldRect.xy) * uFieldRect.zw).a;
+        c = mix(c * vec3(0.18, 0.3, 0.12), c * 1.05, bare) * (1.0 - shade * 0.62);
+        outColor = vec4(applyHaze(c, vDist, uHaze, uHazeRange), 1.0);
+        return;
+#endif
         c = c * 0.62 + vec3(0.02, 0.05, 0.05);
         outColor = vec4(applyHaze(shadeCloud(c, texture(uFlow, (vXZ - uFieldRect.xy) * uFieldRect.zw).a), vDist, uHaze, uHazeRange), 1.0);
       }`,

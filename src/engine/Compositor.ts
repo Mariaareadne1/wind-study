@@ -70,7 +70,7 @@ export class Compositor {
       glslVersion: GLSL3,
       depthTest: false,
       depthWrite: false,
-      uniforms: { uScene: { value: this.target.texture }, uPixel: { value: [1 / 4, 1 / 4] }, uDpr: { value: 1 }, uPaper: { value: makePaper() }, uMat: { value: 0 }, uSize: { value: [4, 4] } },
+      uniforms: { uScene: { value: this.target.texture }, uPixel: { value: [1 / 4, 1 / 4] }, uDpr: { value: 1 }, uPaper: { value: makePaper() }, uMat: { value: 0 }, uSize: { value: [4, 4] }, uLift: { value: 1 }, uGrain: { value: 1 }, uSat: { value: 1 }, uSoft: { value: 1 } },
       vertexShader: /* glsl */ `
         in vec3 position;
         out vec2 vUv;
@@ -85,21 +85,27 @@ export class Compositor {
         uniform sampler2D uPaper;
         uniform float uMat; // border width in device px; 0 is full bleed
         uniform vec2 uSize;
+        uniform float uLift;
+        uniform float uGrain;
+        uniform float uSat;
+        uniform float uSoft;
         void main() {
           // the faintest softening: fibres should feel soft, never crunchy
           vec2 px = uPixel * max(uDpr * 0.6, 0.75);
-          vec3 c = texture(uScene, vUv).rgb * 0.6;
-          c += texture(uScene, vUv + px * vec2(0.7, 0.4)).rgb * 0.2;
-          c += texture(uScene, vUv - px * vec2(0.7, 0.4)).rgb * 0.2;
+          vec3 c = texture(uScene, vUv).rgb * (1.0 - 0.4 * uSoft);
+          c += texture(uScene, vUv + px * vec2(0.7, 0.4)).rgb * 0.2 * uSoft;
+          c += texture(uScene, vUv - px * vec2(0.7, 0.4)).rgb * 0.2 * uSoft;
 
           vec2 frag = gl_FragCoord.xy / uDpr;
           // stationary paper: tooth at two scales and slow pigment mottling
           float tooth = texture(uPaper, frag * 0.0041).r;
           float mottle = texture(uPaper, frag * 0.000173 + 0.37).g * 0.6 + texture(uPaper, frag * 0.000061).g * 0.4;
-          c *= 1.0 + (tooth - 0.5) * 0.045;
-          c *= 1.0 + (mottle - 0.5) * 0.05;
+          c *= 1.0 + (tooth - 0.5) * 0.045 * uGrain;
+          c *= 1.0 + (mottle - 0.5) * 0.05 * uGrain;
           // lift the darkest values a touch toward warm paper: gouache has no true black
-          c = mix(vec3(0.075, 0.09, 0.07), vec3(1.0), c);
+          c = mix(vec3(0.075, 0.09, 0.07) * uLift, vec3(1.0), c);
+          float lum = dot(c, vec3(0.3, 0.59, 0.11));
+          c = mix(vec3(lum), c, uSat);
           vec2 q = vUv - 0.5;
           c *= 1.0 - dot(q, q) * 0.11;
           if (uMat > 0.0) {
@@ -133,6 +139,15 @@ export class Compositor {
     this.material.uniforms.uPixel.value = [1 / width, 1 / height];
     this.material.uniforms.uDpr.value = dpr;
     this.material.uniforms.uSize.value = [width, height];
+  }
+
+  /** Finish: black lift, paper grain, saturation and softening, each 1 = the painted default. */
+  setFinish(f: { lift: number; grain: number; saturation: number; soften: number }): void {
+    const u = this.material.uniforms;
+    u.uLift.value = f.lift;
+    u.uGrain.value = f.grain;
+    u.uSat.value = f.saturation;
+    u.uSoft.value = f.soften;
   }
 
   /** Painted border width in device px; 0 for full bleed. */

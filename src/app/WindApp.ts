@@ -7,6 +7,11 @@ import { FADE, type InkLine, StrokeLine } from '../interaction/StrokeLine';
 import { PointerSmoother } from '../interaction/stroke';
 import { placeCamera, screenRays } from '../scene/framing';
 import { MEADOW, type SceneProfile } from '../scene/profiles';
+import { bakeCloudShadow, buildPuffs, Clouds, makeShadowTexture } from '../scene/Clouds';
+import { makeSwirl } from '../scene/swirl';
+import { Cyclist } from '../scene/Cyclist';
+import { sampleGrid } from '../wind/grid';
+import type { DataTexture } from 'three';
 import { buildGround } from '../scene/Ground';
 import { buildPainting, type Painting } from '../scene/paint';
 import { Terrain } from '../scene/terrain';
@@ -60,6 +65,11 @@ export class WindApp {
   private readonly line = new StrokeLine();
   private readonly lines: ActiveLine[] = [];
   private readonly groundDispose: () => void;
+  private clouds: Clouds | null = null;
+  private cyclist: Cyclist | null = null;
+  private shadowTex: DataTexture | null = null;
+  private readonly cloudOffset = { value: new Vector3() };
+  private swirlFn: ReturnType<typeof makeSwirl> | null = null;
   private readonly timeUniform = { value: 0 };
   private raf = 0;
   private lastT = 0;
@@ -127,11 +137,19 @@ export class WindApp {
     this.uniforms.uHaze.value.set(haze.color[0], haze.color[1], haze.color[2], haze.amount);
     this.uniforms.uHazeRange.value.set(haze.near, haze.far);
 
-    this.grass = new GrassField(this.uniforms);
-    const ground = buildGround(this.terrain, this.painting, this.uniforms.uFlow, this.uniforms.uFieldRect, this.uniforms);
+    const look = this.profile.realistic;
+    if (look) {
+      this.uniforms.uSunColor.value.set(look.sunColor[0], look.sunColor[1], look.sunColor[2]);
+      this.uniforms.uSkyColor.value.set(look.skyColor[0], look.skyColor[1], look.skyColor[2]);
+      this.compositor.setFinish(look.finish);
+    }
+    this.grass = new GrassField(this.uniforms, !!look);
+    const ground = buildGround(this.terrain, this.painting, this.uniforms.uFlow, this.uniforms.uFieldRect, this.uniforms, !!look);
     this.groundDispose = ground.dispose;
     this.flowers = new Flowers(this.uniforms);
     this.scene.add(ground.mesh, this.grass.mesh, this.flowers.mesh);
+    this.buildClouds();
+    this.buildCyclist();
 
     this.resize();
     this.rebuildGrass();
@@ -161,13 +179,47 @@ export class WindApp {
     return Math.round(Math.min(budget * (coarse ? 0.75 : 1), 130_000));
   }
 
+  private get swirl(): ReturnType<typeof makeSwirl> {
+    this.swirlFn ??= makeSwirl(this.seed);
+    return this.swirlFn;
+  }
+
+  /** Clouds and the shadows they cast, baked once along the sun. */
+  private buildClouds(): void {
+    const specs = this.profile.clouds;
+    if (!specs?.length) return;
+    const puffs = specs.flatMap(buildPuffs);
+    const res = [304, 208] as const;
+    this.shadowTex = makeShadowTexture(bakeCloudShadow(puffs, this.terrain, this.profile.sun, FIELD, res[0], res[1]), res[0], res[1]);
+    this.windTex.setShadowMap(this.shadowTex);
+    this.clouds = new Clouds(puffs, this.camera, this.profile.sun, this.cloudOffset);
+    this.scene.add(this.clouds.mesh);
+  }
+
+  private buildCyclist(): void {
+    const c = this.profile.cyclist;
+    if (!c) return;
+    this.cyclist = new Cyclist(c.path, (x, z) => this.terrain.height(x, z), c.span);
+    this.scene.add(this.cyclist.mesh);
+  }
+
+  /** Clouds sway slowly; their shadows move with them. */
+  private driftClouds(time: number): void {
+    if (!this.clouds) return;
+    const dx = Math.sin(time * 0.045) * 1.6;
+    const dz = Math.sin(time * 0.031 + 1.3) * 0.6;
+    this.cloudOffset.value.set(dx, Math.sin(time * 0.07) * 0.15, dz);
+    this.windTex.setShadowShift(dx, dz);
+  }
+
   rebuildGrass(): void {
     placeCamera(this.camera, this.cssW / this.cssH, this.profile.framing);
     const { refDist, sizeExponent, sizeScale, screenBias, combJitter } = this.profile.grass;
-    const buffers = buildGrass(this.terrain, this.painting, screenRays(this.camera), { tufts: this.tuftBudget(), seed: this.seed, refDist, sizeExponent, sizeScale, screenBias, combJitter });
+    const long = this.profile.long ? { ...this.profile.long, lay: this.swirl } : undefined;
+    const buffers = buildGrass(this.terrain, this.painting, screenRays(this.camera), { tufts: this.tuftBudget(), seed: this.seed, refDist, sizeExponent, sizeScale, screenBias, combJitter, long });
     this.grass.setBuffers(buffers);
     this.grass.setDensity(this.density);
-    this.flowers.setBuffers(buildFlowers(this.terrain, screenRays(this.camera), { flowers: 620, seedHeads: 260, seed: this.seed, refDist, sizeExponent, scale: sizeScale }));
+    this.flowers.setBuffers(buildFlowers(this.terrain, screenRays(this.camera), { ...(this.profile.flowers ?? { flowers: 620, seedHeads: 260 }), seed: this.seed, refDist, sizeExponent, scale: sizeScale }));
     this.builtAspect = this.cssW / this.cssH;
     this.uniforms.uCamPos.value.copy(this.camera.position);
   }
@@ -253,6 +305,8 @@ export class WindApp {
   renderFrame(): void {
     const { renderer, sim } = this;
     this.timeUniform.value = sim.time + sim.alpha * SIM_DT;
+    this.driftClouds(this.timeUniform.value);
+    this.cyclist?.update(this.timeUniform.value, this.camera, (x, z) => [sampleGrid(sim.totalU, x, z), sampleGrid(sim.totalV, x, z)]);
     this.windTex.render(renderer, sim.alpha, this.timeUniform.value);
     this.line.update(this.lines, this.camera, this.terrain, this.cssW, this.cssH);
     renderer.setRenderTarget(this.compositor.target);
@@ -341,8 +395,9 @@ export class WindApp {
     if (tuning === this.appliedTuning && framed === this.appliedFramed) return;
     this.appliedTuning = tuning;
     this.uniforms.uBendGain.value = tuning.lean;
-    this.uniforms.uFlutter.value = tuning.flutter;
-    this.sim.applyTuning(tuning, this.opts.reducedMotion ? 0.35 : 1);
+    const motion = this.profile.motion ?? { breeze: 1, flutter: 1 };
+    this.uniforms.uFlutter.value = tuning.flutter * motion.flutter;
+    this.sim.applyTuning(tuning, (this.opts.reducedMotion ? 0.35 : 1) * motion.breeze);
     if (framed !== this.appliedFramed) {
       this.appliedFramed = framed;
       this.applyFrame();
@@ -555,6 +610,9 @@ export class WindApp {
     c.removeEventListener('webglcontextlost', this.onContextLost);
     c.removeEventListener('webglcontextrestored', this.onContextRestored);
     this.grass.dispose();
+    this.clouds?.dispose();
+    this.cyclist?.dispose();
+    this.shadowTex?.dispose();
     this.flowers.dispose();
     this.groundDispose();
     this.windTex.dispose();

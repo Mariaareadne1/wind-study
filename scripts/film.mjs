@@ -9,7 +9,7 @@ const browser = await chromium.launch({ args: ['--use-angle=metal', '--enable-gp
 const page = await browser.newPage({ viewport: { width: +vw, height: +vh }, deviceScaleFactor: +dpr });
 await page.goto(`${process.env.URL ?? 'http://localhost:5428/'}?manual&fixed&${process.env.QUERY ?? ''}`);
 await page.waitForFunction(() => window.__wind && !window.__wind.store.get().loading, null, { timeout: 90000 });
-await page.evaluate(() => window.__wind.app.stepFrames(120));
+await page.evaluate((n) => window.__wind.app.stepFrames(n), +(process.env.START ?? 120));
 // hero: gestures at set times (seconds); otherwise a single pattern a second in
 const events = what === 'hero' ? [] : [[1.0, what]];
 if (what === 'hero') await page.evaluate(() => window.__wind.app.playDemo());

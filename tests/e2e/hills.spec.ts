@@ -134,7 +134,9 @@ test.describe('the hills version', () => {
     await page.mouse.move(700, 480, { steps: 6 });
     await page.mouse.up();
     expect(await page.evaluate(() => window.__wind!.app.sim.gusts.length)).toBeGreaterThan(0);
-    // and back, by key
+    // V steps through the versions: Hills, then Sunlit, then back to Meadow
+    await page.keyboard.press('v');
+    await page.waitForFunction(() => window.__wind && window.__wind.app.profile.id === 'sunlit' && !window.__wind.store.get().loading);
     await page.keyboard.press('v');
     await page.waitForFunction(() => window.__wind && window.__wind.app.profile.id === 'meadow' && !window.__wind.store.get().loading);
     expect(page.url()).not.toContain('scene=');
@@ -158,5 +160,38 @@ test.describe('the hills version', () => {
     const after = await mem();
     expect(after.geometries).toBeLessThanOrEqual(first.geometries);
     expect(after.textures).toBeLessThanOrEqual(first.textures);
+  });
+});
+
+test.describe('the sunlit version', () => {
+  test('long grass, clouds, a rider, cast shadows, and a drawn gust moves it', async ({ page }) => {
+    await open(page, 'manual&fixed&dpr=1&tufts=20000&scene=sunlit');
+    await snap(page, 'rest', 30);
+    const scene = await page.evaluate(() => {
+      const a = window.__wind!.app;
+      const names = a.scene.children.map((c) => c.renderOrder);
+      return { id: a.profile.id, clouds: names.includes(10), rider: names.includes(6) };
+    });
+    expect(scene).toEqual({ id: 'sunlit', clouds: true, rider: true });
+    // cloud shadows really darken the grass beneath them
+    const shade = await page.evaluate(() => {
+      const d = window.__frames!.rest;
+      const c = window.__wind!.app.canvas;
+      let lum = 0;
+      let dark = 0;
+      let n = 0;
+      for (let i = 0; i < d.length; i += 4 * 37) {
+        const l = d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
+        lum += l;
+        if (l < 70) dark++;
+        n++;
+      }
+      return { mean: lum / n, darkShare: dark / n, w: c.width };
+    });
+    expect(shade.mean).toBeGreaterThan(80);
+    expect(shade.darkShare).toBeGreaterThan(0.04);
+    await page.evaluate(() => window.__wind!.app.play('heroCurve'));
+    await snap(page, 'gust', 80);
+    expect(await frameDiff(page, 'rest', 'gust')).toBeGreaterThan(8);
   });
 });

@@ -2,8 +2,8 @@ import { describe, expect, test } from 'vitest';
 import { buildGrass, STRANDS_PER_TUFT } from '../../src/grass/tufts';
 import { softLimit, strandPoint, THETA_MAX } from '../../src/grass/bend';
 import { buildPainting } from '../../src/scene/paint';
-import { hillsHeight, Terrain, WORLD } from '../../src/scene/terrain';
-import { hillsFramingFor, placeCamera, screenRays } from '../../src/scene/framing';
+import { hillsHeight, sunlitHeight, Terrain, WORLD } from '../../src/scene/terrain';
+import { hillsFramingFor, placeCamera, screenRays, sunlitFramingFor } from '../../src/scene/framing';
 import { PerspectiveCamera } from 'three';
 import { resampleInto, totalTurning, PointerSmoother } from '../../src/interaction/stroke';
 import { pattern } from '../../src/wind/patterns';
@@ -181,5 +181,24 @@ describe('the hills', () => {
       if (b > a && b > c) crests++;
     }
     expect(crests).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('the sunlit slope', () => {
+  const terrain = new Terrain(7, sunlitHeight, true);
+  test.each([0.46, 0.56, 0.8, 1, 1.6, 1.78, 2.4])('no sky at any window shape: aspect %s', (aspect) => {
+    const camera = new PerspectiveCamera();
+    placeCamera(camera, aspect, sunlitFramingFor);
+    const { origin: [ox, oy, oz], corners: [c00, c10, c01, c11] } = screenRays(camera);
+    for (let j = 0; j <= 20; j++) {
+      for (let i = 0; i <= 20; i++) {
+        const u = i / 20;
+        const v = j / 20;
+        const at = (k: number) => c00[k] * (1 - u) * (1 - v) + c10[k] * u * (1 - v) + c01[k] * (1 - u) * v + c11[k] * u * v;
+        const hit = terrain.raycast(ox, oy, oz, at(0), at(1), at(2));
+        expect(hit, `ray ${u},${v}`).not.toBeNull();
+        expect(Math.abs(hit![0])).toBeLessThanOrEqual(WORLD.maxX);
+      }
+    }
   });
 });

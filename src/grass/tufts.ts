@@ -33,6 +33,16 @@ export interface GrassOptions {
   screenBias?: number;
   /** Reads the nap direction from up to this far away, so it never changes along a line. */
   combJitter?: number;
+  /** Long grass lying in combed streams: replaces the tuft fan and mounds. */
+  long?: LongGrass;
+}
+
+export interface LongGrass {
+  lay: (x: number, z: number) => { x: number; z: number; lean: number; streak: number };
+  /** Multiplies strand length. */
+  length: number;
+  /** Multiplies strand width. */
+  width: number;
 }
 
 /** Soft mounds of grass a little over a world unit across: the mid scale of the fluff. */
@@ -160,6 +170,9 @@ export function buildGrass(terrain: Terrain, paint: Painting, rays: ScreenRays, 
     const tuftPhase = rng();
     const fanStart = rng() * Math.PI * 2;
 
+    const long = opts.long;
+    const lay = long ? long.lay(cx, cz) : null;
+
     for (let k = 0; k < STRANDS_PER_TUFT; k++) {
       // a sunflower disc gives an even dome with no two tufts alike
       const r = Math.sqrt((k + 0.35) / STRANDS_PER_TUFT);
@@ -180,6 +193,20 @@ export function buildGrass(terrain: Terrain, paint: Painting, rays: ScreenRays, 
       shape[s * 4 + 1] = baseW * mix(0.8, 1.2, rng());
       shape[s * 4 + 2] = ax * fan + combX * combLean + moundX * moundFan;
       shape[s * 4 + 3] = az * fan + combZ * combLean + moundZ * moundFan;
+      if (long && lay) {
+        // long grass lies down along the stream, each strand a little off from its neighbours
+        const spread = (k / STRANDS_PER_TUFT - 0.5) * 0.5;
+        const c = Math.cos(spread);
+        const sn = Math.sin(spread);
+        const lx = lay.x * c - lay.z * sn;
+        const lz = lay.x * sn + lay.z * c;
+        const lean = (under ? 0.55 : 1) * lay.lean * (0.9 + 0.2 * ((k * 0.618) % 1));
+        // short fields stay short: length falls away faster than the patch height
+        shape[s * 4] = (h / Math.max(0.78 + 0.34 * crown, 0.01)) * long.length * (under ? 0.7 : 1) * Math.min(1, patchTall);
+        shape[s * 4 + 1] *= long.width;
+        shape[s * 4 + 2] = lx * lean + ax * fan * 0.15;
+        shape[s * 4 + 3] = lz * lean + az * fan * 0.15;
+      }
 
       // rim strands sit in the tuft's own shade; centre strands catch the light
       const rim = 1 - 0.28 * r * r;
@@ -188,6 +215,19 @@ export function buildGrass(terrain: Terrain, paint: Painting, rays: ScreenRays, 
       tint[s * 4] = clamp((pigment2[0] * (1 + warmth * 0.6)) * tone, 0, 255);
       tint[s * 4 + 1] = clamp(pigment2[1] * tone, 0, 255);
       tint[s * 4 + 2] = clamp((pigment2[2] * (1 - warmth)) * tone, 0, 255);
+      if (lay) {
+        // lanes along the stream: crests of the waves go pale and silvery, troughs deep green
+        const crest = clamp((lay.streak - 0.5) / 0.85 + (rng() - 0.5) * 0.12, 0, 1);
+        const pr = tint[s * 4] / 255;
+        const pg = tint[s * 4 + 1] / 255;
+        const pb = tint[s * 4 + 2] / 255;
+        const trough = [pr * 0.46, pg * 0.6, pb * 0.34];
+        const silver = [mix(pr, 0.88, 0.42), mix(pg, 0.95, 0.36), mix(pb, 0.56, 0.4)];
+        const k = crest * crest * (3 - 2 * crest);
+        tint[s * 4] = clamp(mix(trough[0], silver[0], k) * 255, 0, 255);
+        tint[s * 4 + 1] = clamp(mix(trough[1], silver[1], k) * 255, 0, 255);
+        tint[s * 4 + 2] = clamp(mix(trough[2], silver[2], k) * 255, 0, 255);
+      }
       tint[s * 4 + 3] = clamp((under ? 0.2 : wisp ? 0.95 : 0.55) * mix(0.75, 1.2, rng()) * 255, 0, 255);
 
       dyn[s * 4] = softness * 255;

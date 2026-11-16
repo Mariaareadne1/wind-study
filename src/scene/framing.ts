@@ -41,6 +41,19 @@ export function hillsFramingFor(aspect: number): Framing {
   };
 }
 
+/** From above the lane, looking up the slope, so the grass fills the frame like a wall of moving silk. */
+export function sunlitFramingFor(aspect: number): Framing {
+  const wide = smoothstep(0.6, 1.3, aspect);
+  const limit = aspect > 1.9 ? 1.9 / aspect : 1;
+  return {
+    fov: mix(40, 30, wide) * limit,
+    pitch: (Math.PI / 180) * mix(30, 24, wide),
+    distance: mix(44, 48, wide),
+    targetZ: mix(0, -2, wide),
+    targetY: mix(4, 4, wide),
+  };
+}
+
 export function placeCamera(camera: PerspectiveCamera, aspect: number, framing: (aspect: number) => Framing = framingFor): void {
   const f = framing(aspect);
   const ty = f.targetY ?? 0;

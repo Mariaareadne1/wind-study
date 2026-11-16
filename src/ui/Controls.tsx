@@ -15,6 +15,7 @@ const STRENGTHS: { id: Strength; label: string; tip: string }[] = [
 const SCENES: { id: SceneId; label: string; tip: string }[] = [
   { id: 'meadow', label: 'Meadow', tip: 'The patchwork, seen from above' },
   { id: 'hills', label: 'Hills', tip: 'Rolling hills, seen from low down' },
+  { id: 'sunlit', label: 'Sunlit', tip: 'Long grass in strong sun, with clouds' },
 ];
 
 const PATTERNS: { key: string; name: PatternName; label: string }[] = [
@@ -142,7 +143,7 @@ export function Controls({ store, app }: Props) {
       else if (e.key === 'h' || e.key === 'H') store.set({ uiHidden: !st.uiHidden });
       else if (e.key === 's' || e.key === 'S') void capture();
       else if (e.key === '?') store.set({ helpOpen: !st.helpOpen, tuneOpen: false });
-      else if ((e.key === 'v' || e.key === 'V') && !st.recording && !st.loading) store.set({ scene: st.scene === 'hills' ? 'meadow' : 'hills' });
+      else if ((e.key === 'v' || e.key === 'V') && !st.recording && !st.loading) store.set({ scene: st.scene === 'meadow' ? 'hills' : st.scene === 'hills' ? 'sunlit' : 'meadow' });
       else if (e.key === 't' || e.key === 'T') store.set({ tuneOpen: !st.tuneOpen, helpOpen: false });
     };
     window.addEventListener('keydown', onKey);
@@ -244,7 +245,7 @@ export function Controls({ store, app }: Props) {
             <dt>Space</dt><dd>Pause</dd>
             <dt>Z</dt><dd>Undo the latest gust</dd>
             <dt>C</dt><dd>Clear drawn wind</dd>
-            <dt>V</dt><dd>Switch Meadow and Hills</dd>
+            <dt>V</dt><dd>Next version</dd>
             <dt>T</dt><dd>Tune the wind and grass</dd>
             <dt>R</dt><dd>Reset</dd>
             <dt>S</dt><dd>Capture a still</dd>

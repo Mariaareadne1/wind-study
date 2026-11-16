@@ -1,8 +1,9 @@
-import { framingFor, hillsFramingFor, type Framing } from './framing';
-import { HILL_PATCHES, PATCHES, SUN, type FieldPatch } from './paint';
-import { hillsClimb, hillsHeight, meadowHeight, type HeightFn } from './terrain';
+import { framingFor, hillsFramingFor, sunlitFramingFor, type Framing } from './framing';
+import type { CloudSpec } from './Clouds';
+import { HILL_PATCHES, PATCHES, SUN, SUNLIT_PATCHES, type FieldPatch } from './paint';
+import { hillsClimb, hillsHeight, meadowHeight, sunlitHeight, sunlitPath, sunlitPathCentre, type HeightFn } from './terrain';
 
-export type SceneId = 'meadow' | 'hills';
+export type SceneId = 'meadow' | 'hills' | 'sunlit';
 
 /** Everything that differs between versions. Wind, grass, interface and tests are shared. */
 export interface SceneProfile {
@@ -33,6 +34,8 @@ export interface SceneProfile {
     formShade?: number;
     /** How dark one hill's shadow falls on the next, 0..1. */
     shadowDepth?: number;
+    bare?: (x: number, z: number) => number;
+    bareColor?: readonly [number, number, number];
   };
   grass: {
     /** Distance at which strands are nominal size; null uses the camera height rule. */
@@ -51,6 +54,20 @@ export interface SceneProfile {
   };
   /** Atmosphere by distance from the eye. Amount 0 turns it off. */
   haze: { color: readonly [number, number, number]; near: number; far: number; amount: number };
+  /** Photographic light instead of the painted look: fibre lighting, cast cloud shadows, a clean finish. */
+  realistic?: {
+    sunColor: readonly [number, number, number];
+    skyColor: readonly [number, number, number];
+    finish: { lift: number; grain: number; saturation: number; soften: number };
+  };
+  /** Long grass combed into streams. */
+  long?: { length: number; width: number };
+  clouds?: readonly CloudSpec[];
+  flowers?: { flowers: number; seedHeads: number };
+  /** Long blades swing their tips further for the same breeze: scale the idle motion down. */
+  motion?: { breeze: number; flutter: number };
+  /** A rider on the track: its centre line, and where the ride starts and ends. */
+  cyclist?: { path: (x: number) => number; span: [number, number] };
   /** Ready-made gestures are composed on the screen, then dropped onto whichever hill is there. */
   screenPatterns: boolean;
 }
@@ -87,6 +104,47 @@ export const HILLS: SceneProfile = {
   haze: { color: [0.76, 0.86, 0.87], near: 24, far: 72, amount: 0.7 },
 };
 
+/** After the photographs: a long hillside of silky grass in strong sun, low cumulus casting real shadows. */
+export const SUNLIT: SceneProfile = {
+  id: 'sunlit',
+  height: sunlitHeight,
+  marchRays: true,
+  framing: sunlitFramingFor,
+  patches: SUNLIT_PATCHES,
+  // high, behind the slope and to the right: backlit blades, shadows falling toward the viewer
+  sun: normalize([0.16, 0.96, -0.16]),
+  paint: {
+    litGain: 0.9,
+    airFrom: 0,
+    airTo: -30,
+    airAmount: 0,
+    airColor: [0.8, 0.88, 0.8],
+    castShadows: false,
+    valleyShade: 0,
+    patchSharpness: 0.9,
+    bare: sunlitPath,
+    bareColor: [0.82, 0.78, 0.55],
+  },
+  grass: { refDist: 30, sizeExponent: 0.2, sizeScale: 0.9, density: 0.9, screenBias: 0.75, combJitter: 0, gustWidth: 1 },
+  screenPatterns: true,
+  haze: { color: [0.72, 0.82, 0.62], near: 30, far: 80, amount: 0.25 },
+  realistic: {
+    sunColor: [1.5, 1.44, 1.08],
+    skyColor: [0.44, 0.56, 0.38],
+    finish: { lift: 0, grain: 0.25, saturation: 1.08, soften: 0.6 },
+  },
+  long: { length: 9, width: 0.7 },
+  clouds: [
+    // placed to match the photograph's layout in a tall frame: big upper middle, medium right, small lower left
+    { x: -1.8, y: 11.2, z: 1.5, width: 5.6, depth: 3.2, height: 2.8, seed: 11 },
+    { x: 3.2, y: 8.3, z: 7.1, width: 5.8, depth: 3.2, height: 2.9, seed: 23 },
+    { x: -3.9, y: 5.5, z: 10.8, width: 3.3, depth: 2, height: 1.7, seed: 37 },
+  ],
+  flowers: { flowers: 0, seedHeads: 0 },
+  cyclist: { path: sunlitPathCentre, span: [-16, 16] },
+  motion: { breeze: 0.4, flutter: 0.35 },
+};
+
 export function profileFor(id: string | null): SceneProfile {
-  return id === 'hills' ? HILLS : MEADOW;
+  return id === 'hills' ? HILLS : id === 'sunlit' ? SUNLIT : MEADOW;
 }

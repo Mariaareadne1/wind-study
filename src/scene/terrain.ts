@@ -162,3 +162,26 @@ export function hillsHeight(n: (x: number, y: number) => number, x: number, z: n
   h += 0.5 * fbm(n, x * 0.07, z * 0.07, 2);
   return h;
 }
+
+/** The dirt track across the foreground of the sunlit slope: 1 on the track, 0 in the grass. */
+export function sunlitPathCentre(x: number): number {
+  return 12.2 + 0.8 * Math.sin(x * 0.065 + 0.6) + 0.35 * Math.sin(x * 0.17);
+}
+
+export function sunlitPath(x: number, z: number): number {
+  return smooth(0.6, 0.22, Math.abs(z - sunlitPathCentre(x)));
+}
+
+/**
+ * A long slope climbing away from a flat strip, like a hillside seen from across
+ * a lane: big enough to fill the frame, with broad swells for the light to roll over.
+ */
+export function sunlitHeight(n: (x: number, y: number) => number, x: number, z: number): number {
+  const k = (8.5 - z) / 3;
+  const softplus = k > 12 ? k : Math.log(1 + Math.exp(k));
+  let h = 1.25 * softplus;
+  h += 1.4 * smooth(7, -12, z) * fbm(n, x * 0.045 + 3, z * 0.06, 3);
+  h += 1.2 * bump(x, z, -14, -6, 10, 7, 0.4) - 0.9 * bump(x, z, 10, -2, 8, 6, -0.3) + 1.1 * bump(x, z, 18, -16, 12, 7, 0.2);
+  h += 0.12 * fbm(n, x * 0.3, z * 0.3, 2);
+  return h;
+}

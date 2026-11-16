@@ -39,6 +39,9 @@ uniform highp sampler2D uA;
 uniform highp sampler2D uB;
 uniform float uAlpha;
 uniform float uCloudTime; // negative: leave alpha alone
+uniform sampler2D uShadowMap;
+uniform float uUseShadowMap;
+uniform vec2 uShadowShift; // cloud drift, in field uv
 ${CLOUD_GLSL}
 vec4 spline(highp sampler2D tex, vec2 uv) {
   ivec2 size = textureSize(tex, 0);
@@ -67,7 +70,7 @@ void main() {
   outColor = mix(spline(uA, vUv), spline(uB, vUv), uAlpha);
   if (uCloudTime >= 0.0) {
     vec2 xz = vec2(${FIELD.minX.toFixed(1)}, ${FIELD.minZ.toFixed(1)}) + vUv * vec2(${FIELD.width.toFixed(1)}, ${FIELD.depth.toFixed(1)});
-    outColor.a = cloudAmount(xz, uCloudTime);
+    outColor.a = uUseShadowMap > 0.5 ? texture(uShadowMap, vUv - uShadowShift).r : cloudAmount(xz, uCloudTime);
   }
 }`;
 
@@ -118,7 +121,7 @@ export class WindTextures {
       glslVersion: GLSL3,
       vertexShader: VERT,
       fragmentShader: FRAG,
-      uniforms: { uA: { value: null }, uB: { value: null }, uAlpha: { value: 1 }, uCloudTime: { value: -1 } },
+      uniforms: { uA: { value: null }, uB: { value: null }, uAlpha: { value: 1 }, uCloudTime: { value: -1 }, uShadowMap: { value: null }, uUseShadowMap: { value: 0 }, uShadowShift: { value: [0, 0] } },
       depthTest: false,
       depthWrite: false,
     });
@@ -152,6 +155,17 @@ export class WindTextures {
     }
     bendTex.needsUpdate = true;
     flowTex.needsUpdate = true;
+  }
+
+  /** Use a baked cloud shadow (over the field rectangle) instead of the painted cloud shadows. */
+  setShadowMap(tex: Texture | null): void {
+    this.material.uniforms.uShadowMap.value = tex;
+    this.material.uniforms.uUseShadowMap.value = tex ? 1 : 0;
+  }
+
+  /** Slide the baked shadow with the clouds, in world units. */
+  setShadowShift(dx: number, dz: number): void {
+    this.material.uniforms.uShadowShift.value = [dx / FIELD.width, dz / FIELD.depth];
   }
 
   /** Resample at the current interpolation alpha. */

@@ -99,7 +99,7 @@ export function App() {
     <div className={framed ? 'stage framed' : 'stage'}>
       <canvas ref={canvasRef} data-testid="meadow" aria-label="A hand-painted meadow. Draw on it to make the wind blow; keyboard users can press 1 to 4 for ready-made gusts." />
       <Controls store={store} app={app} />
-      {loading && <p className="status" role="status">{scene === 'hills' ? 'Painting the hills…' : 'Painting the meadow…'}</p>}
+      {loading && <p className="status" role="status">{scene === 'hills' ? 'Painting the hills…' : scene === 'sunlit' ? 'Growing the grass…' : 'Painting the meadow…'}</p>}
       {error && <p className="status error" role="alert">{error}</p>}
     </div>
   );
