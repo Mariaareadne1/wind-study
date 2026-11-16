@@ -21,6 +21,12 @@ const query = () => new URLSearchParams(location.search);
 function initialStore(): Store {
   const store = new Store();
   const q = query();
+  // ?compare: a fixed, clean frame for side-by-side checks against a reference (no interface, no border)
+  if (q.has('compare')) {
+    for (const k of ['manual', 'fixed', 'demo']) q.set(k, '');
+    q.set('frame', '0');
+    history.replaceState(null, '', `?${q.toString()}`);
+  }
   const stored = q.has('manual') ? { tuning: store.get().tuning, framed: false } : loadStored();
   const frameParam = q.get('frame');
   store.set({
@@ -74,6 +80,7 @@ export function App() {
         built = new WindApp(canvas, store, {
           seed: Number(q.get('seed')) || 7,
           profile: profileFor(scene),
+          bare: q.has('bare'),
           tufts: Number(q.get('tufts')) || undefined,
           dpr: Number(q.get('dpr')) || undefined,
           fixedQuality: q.has('fixed'),

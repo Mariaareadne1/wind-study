@@ -173,15 +173,29 @@ export function sunlitPath(x: number, z: number): number {
 }
 
 /**
- * A long slope climbing away from a flat strip, like a hillside seen from across
- * a lane: big enough to fill the frame, with broad swells for the light to roll over.
+ * Rolling grassy waves, like the photograph: long ridges lying across the view,
+ * each one gently sinuous, with deep curving troughs between them. Asymmetric
+ * like swell: a long gentle back and a steeper face toward the viewer, so the
+ * troughs fall into real shade. Calm and flat in the foreground, building up the
+ * slope, which keeps rising until it fills the frame.
  */
 export function sunlitHeight(n: (x: number, y: number) => number, x: number, z: number): number {
-  const k = (8.5 - z) / 3;
-  const softplus = k > 12 ? k : Math.log(1 + Math.exp(k));
-  let h = 1.25 * softplus;
-  h += 1.4 * smooth(7, -12, z) * fbm(n, x * 0.045 + 3, z * 0.06, 3);
-  h += 1.2 * bump(x, z, -14, -6, 10, 7, 0.4) - 0.9 * bump(x, z, 10, -2, 8, 6, -0.3) + 1.1 * bump(x, z, 18, -16, 12, 7, 0.2);
-  h += 0.12 * fbm(n, x * 0.3, z * 0.3, 2);
+  // the slope the waves ride on
+  const k = (12 - z) / 5;
+  const climb = 2.2 * (k > 12 ? k : Math.log(1 + Math.exp(k)));
+  // waves build from nothing in the foreground to full size up the slope
+  const build = smooth(15, 3, z);
+  // ridge lines wander: a slow bend across the view and a little noise, never straight, never tight
+  // a diagonal lean and broad S-bends, so the waves sweep across the view rather than stack in rows
+  const warp = 0.28 * x + 3.6 * Math.sin(x * 0.07 + 0.7) + 1.5 * Math.sin(x * 0.16 - 1.1 + z * 0.05) + 3.4 * fbm(n, x * 0.03, z * 0.03, 2);
+  const phase = (z + warp) / 9.5;
+  const f = phase - Math.floor(phase);
+  // swell profile: rises slowly over most of the period, then drops more quickly into the trough
+  const swell = f < 0.68 ? smooth(0, 0.68, f) : smooth(1, 0.68, f);
+  // ridges are not uniform along their length: they swell and subside
+  const along = 0.4 + 0.85 * smooth(-0.32, 0.32, fbm(n, x * 0.045 + 11, Math.floor(phase) * 3.1, 2));
+  let h = climb + build * 3.3 * along * swell;
+  // broad, low-frequency undulation on top, kept smooth
+  h += 0.9 * build * fbm(n, x * 0.022 + 4, z * 0.03, 2);
   return h;
 }

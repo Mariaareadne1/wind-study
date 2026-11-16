@@ -1,6 +1,7 @@
 import {
   DataTexture,
   GLSL3,
+  HalfFloatType,
   LinearFilter,
   Mesh,
   OrthographicCamera,
@@ -59,9 +60,10 @@ export class Compositor {
   private readonly camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
   private readonly geometry = new PlaneGeometry(2, 2);
 
-  constructor() {
+  constructor(linear = false) {
+    // linear light needs more precision than 8 bits in the deep valleys
     this.target = new WebGLRenderTarget(4, 4, {
-      type: UnsignedByteType,
+      type: linear ? HalfFloatType : UnsignedByteType,
       samples: SAMPLES,
       depthBuffer: true,
       stencilBuffer: false,
@@ -70,7 +72,7 @@ export class Compositor {
       glslVersion: GLSL3,
       depthTest: false,
       depthWrite: false,
-      uniforms: { uScene: { value: this.target.texture }, uPixel: { value: [1 / 4, 1 / 4] }, uDpr: { value: 1 }, uPaper: { value: makePaper() }, uMat: { value: 0 }, uSize: { value: [4, 4] }, uLift: { value: 1 }, uGrain: { value: 1 }, uSat: { value: 1 }, uSoft: { value: 1 } },
+      uniforms: { uScene: { value: this.target.texture }, uPixel: { value: [1 / 4, 1 / 4] }, uDpr: { value: 1 }, uPaper: { value: makePaper() }, uMat: { value: 0 }, uSize: { value: [4, 4] }, uLift: { value: 1 }, uGrain: { value: 1 }, uSat: { value: 1 }, uSoft: { value: 1 }, uExposure: { value: 0 } },
       vertexShader: /* glsl */ `
         in vec3 position;
         out vec2 vUv;
@@ -89,6 +91,8 @@ export class Compositor {
         uniform float uGrain;
         uniform float uSat;
         uniform float uSoft;
+        uniform float uExposure; // 0: the scene is already display colour; above 0: linear light, filmic tonemap
+        vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
         void main() {
           // the faintest softening: fibres should feel soft, never crunchy
           vec2 px = uPixel * max(uDpr * 0.6, 0.75);
@@ -96,6 +100,7 @@ export class Compositor {
           c += texture(uScene, vUv + px * vec2(0.7, 0.4)).rgb * 0.2 * uSoft;
           c += texture(uScene, vUv - px * vec2(0.7, 0.4)).rgb * 0.2 * uSoft;
 
+          if (uExposure > 0.0) c = pow(aces(c * uExposure), vec3(1.0 / 2.2));
           vec2 frag = gl_FragCoord.xy / uDpr;
           // stationary paper: tooth at two scales and slow pigment mottling
           float tooth = texture(uPaper, frag * 0.0041).r;
@@ -142,8 +147,9 @@ export class Compositor {
   }
 
   /** Finish: black lift, paper grain, saturation and softening, each 1 = the painted default. */
-  setFinish(f: { lift: number; grain: number; saturation: number; soften: number }): void {
+  setFinish(f: { lift: number; grain: number; saturation: number; soften: number; exposure?: number }): void {
     const u = this.material.uniforms;
+    u.uExposure.value = f.exposure ?? 0;
     u.uLift.value = f.lift;
     u.uGrain.value = f.grain;
     u.uSat.value = f.saturation;

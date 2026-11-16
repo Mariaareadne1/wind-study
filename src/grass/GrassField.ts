@@ -14,6 +14,7 @@ import {
 import { SUN } from '../scene/paint';
 import { BEND_GLSL } from './bend';
 import { CLOUD_SHADE_GLSL, HAZE_GLSL } from './clouds';
+import { TERRAIN_LIGHT_RECT } from '../scene/terrainLight';
 import { STRANDS_PER_TUFT, type GrassBuffers } from './tufts';
 
 const SEGMENTS = 3;
@@ -56,6 +57,8 @@ uniform vec2 uHazeRange;
 uniform vec3 uSun3;
 uniform vec3 uSunColor;
 uniform vec3 uSkyColor;
+uniform sampler2D uTerrainLight;
+uniform vec4 uWorldRect;
 uniform float uWidthScale;
 uniform float uBendGain;
 uniform float uFlutter;
@@ -132,11 +135,30 @@ void main() {
   float sunVis = 1.0 - texture(uFlow, (world.xz - uFieldRect.xy) * uFieldRect.zw).a;
   vec3 sunCol = uSunColor;
   vec3 skyCol = uSkyColor;
+#ifdef LINEAR
+  // Linear light, lit like a canopy: the land's own normal carries most of the shading, the
+  // fibre term the rest; the land's occlusion and self-shadow put the valleys in real shade.
+  vec4 tl = texture(uTerrainLight, (world.xz - uWorldRect.xy) * uWorldRect.zw);
+  vec3 nT = vec3(tl.b * 2.0 - 1.0, 0.0, tl.a * 2.0 - 1.0);
+  nT.y = sqrt(max(1.0 - nT.x * nT.x - nT.z * nT.z, 0.0));
+  vec3 albedo = pow(base, vec3(2.2));
+  // the waves' own shape carries the light; blade attitude adds texture on top
+  float canopy = pow(max(dot(nT, L), 0.0), 1.4) * 0.8 + fibre * 0.2;
+  float self = mix(0.18, 1.0, ao);
+  vec3 direct = sunCol * canopy * tl.g * sunVis * self * mix(0.8, 1.15, facing - 0.4);
+  vec3 ambient = skyCol * tl.r * tl.r * mix(0.22, 1.0, ao);
+  vec3 lin = albedo * (direct + ambient);
+  // restrained fibre highlights and a little light through backlit tips
+  lin += sunCol * (pow(sinTH, 160.0) * 0.16 + pow(sinTH, 24.0) * 0.045) * tl.g * sunVis * t * t;
+  lin += albedo * vec3(0.9, 1.1, 0.4) * glow * tl.g * sunVis * 0.5;
+  vColor = lin;
+#else
   vec3 col = base * skyCol * mix(0.35, 1.0, ao);
   col += base * sunCol * fibre * facing * sunVis * mix(0.25, 1.0, ao);
   col += mix(sunCol, base * 1.6 + 0.25, 0.45) * sheen * sunVis * t * facing * 0.7;
   col += base * vec3(1.05, 1.25, 0.45) * glow * sunVis * 0.9;
   vColor = col;
+#endif
 #else
   // Colour: all of the shimmer through the field comes from the fibres' own attitude.
   vec3 base = aTint.rgb;
@@ -184,7 +206,11 @@ void main() {
   // soft edges through alpha-to-coverage, so there's no sorting and no hard line
   float d = abs(vSide);
   float aa = max(fwidth(vSide), 1e-3);
-#ifdef REALISTIC
+#ifdef LINEAR
+  // fine blades: a crisp edge with a little feather, so each blade still reads on its own
+  float a = 1.0 - smoothstep(1.0 - aa * 2.5 - 0.15, 1.0, d);
+  a *= 1.0 - smoothstep(0.7, 1.0, vT) * 0.6;
+#elif defined(REALISTIC)
   // long silky blades: a wide feather and a fading tip read as soft, slightly blurred grass
   float a = 1.0 - smoothstep(0.2, 1.0, d);
   a *= 1.0 - smoothstep(0.55, 1.0, vT) * 0.75;
@@ -208,6 +234,8 @@ export interface GrassUniforms {
   uSun3: { value: Vector3 };
   uSunColor: { value: Vector3 };
   uSkyColor: { value: Vector3 };
+  uTerrainLight: { value: Texture | null };
+  uWorldRect: { value: Vector4 };
   uWidthScale: { value: number };
   uBendGain: { value: number };
   uFlutter: { value: number };
@@ -226,6 +254,8 @@ export function makeGrassUniforms(fieldRect: Vector4, sun: readonly [number, num
     uSun3: { value: new Vector3(sun[0], sun[1], sun[2]).normalize() },
     uSunColor: { value: new Vector3(1.3, 1.22, 1.0) },
     uSkyColor: { value: new Vector3(0.36, 0.46, 0.5) },
+    uTerrainLight: { value: null },
+    uWorldRect: { value: new Vector4(...TERRAIN_LIGHT_RECT) },
     uWidthScale: { value: 1 },
     uBendGain: { value: 1 },
     uFlutter: { value: 1 },
@@ -239,9 +269,9 @@ export class GrassField {
   private geometry: InstancedBufferGeometry;
   private capacity = 0;
 
-  constructor(uniforms: GrassUniforms, realistic = false) {
+  constructor(uniforms: GrassUniforms, realistic = false, linear = false) {
     this.material = new ShaderMaterial({
-      defines: realistic ? { REALISTIC: 1 } : {},
+      defines: realistic ? (linear ? { REALISTIC: 1, LINEAR: 1 } : { REALISTIC: 1 }) : {},
       glslVersion: '300 es' as never,
       vertexShader: VERT,
       fragmentShader: FRAG,

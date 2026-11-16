@@ -23,3 +23,32 @@ All milestones M0–M10 complete, plus a second version: Hills (`?scene=hills`).
 
 ## Next steps
 Live feel review and a real-phone test. Redeploy with `npx vercel --prod`, then run the tests with E2E_URL set.
+
+
+## Sunlit rebuild (branch `sunlit`), photorealistic pass — 2026-11-16
+
+Target: `references/meadow_target_reference.png` (the first photograph supplied; gitignored). The earlier render is kept as
+`references/meadow_current_result.png`. Compare with `node scripts/vs.mjs artifacts/vs/name [steps] [extra query]`,
+which renders `?compare&scene=sunlit` at the reference's exact 842×1582 frame. Add `bare` to see the land without grass.
+
+### Done
+- Clouds, rider and track hidden until the grass is right.
+- Terrain rebuilt as soft asymmetric waves that sweep diagonally, calm in the foreground (`sunlitHeight`).
+- Baked terrain light (`src/scene/terrainLight.ts`): sky occlusion from the horizon in 12 directions, sun self-shadow,
+  and the surface normal. Valleys are dark because of their shape.
+- Linear-light rendering for this scene: half-float target, ACES tonemap, sRGB output. Grass is lit as a canopy by the
+  terrain normal, with fibre texture on top.
+- Grass: shorter and denser, combed along the contours of the waves, upright and tufty on the flat, restrained highlights,
+  natural albedos (`grass`, `gold`, `moss`).
+- Meadow and Hills are unchanged (their snapshots still match).
+
+### Visual issues still open
+- Up close the grass is more combed than the target's tufty lawn.
+- The target's upper waves carry longer, swept grass with a silky blur; ours is uniform in length.
+- Frame cost is 16.3 ms median at 2880×1800 (432k strands), borderline for 60 fps.
+
+### Next, in order
+1. Final grass pass (length variation on wave crests, tuft clumping).
+2. Clouds: photographic cumulus (irregular silhouettes, soft volume, grey-blue undersides).
+3. Rider: small, realistically proportioned.
+4. Cursor breeze: a soft local wind that follows the pointer.

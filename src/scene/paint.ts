@@ -19,6 +19,10 @@ export const PALETTE = {
   lime: hex('#c8e04a'),
   emerald: hex('#a6d044'),
   chartreuse: hex('#d4e45a'),
+  // natural albedos, as photographed grass: much less saturated than they look in sun
+  grass: hex('#5c8a2c'),
+  gold: hex('#7c9634'),
+  moss: hex('#4f7430'),
 } as const;
 
 type PaletteKey = keyof typeof PALETTE;
@@ -87,12 +91,13 @@ export const HILL_PATCHES: FieldPatch[] = [
 
 /** The sunlit slope: saturated, nearly one colour, so light and shadow do the work. */
 export const SUNLIT_PATCHES: FieldPatch[] = [
-  { x: -16, z: -4, sx: 1.6, sz: 1, rot: 0.2, color: 'lime', comb: 0, tall: 1 },
-  { x: 10, z: -8, sx: 1.4, sz: 1, rot: -0.2, color: 'emerald', comb: 0, tall: 1 },
-  { x: -4, z: -22, sx: 2, sz: 0.8, rot: 0, color: 'lime', comb: 0, tall: 1 },
-  { x: 18, z: 4, sx: 1.2, sz: 0.8, rot: 0.1, color: 'chartreuse', comb: 0, tall: 0.95 },
-  { x: -20, z: 15, sx: 1.6, sz: 0.5, rot: 0, color: 'chartreuse', comb: 0, tall: 0.26 },
-  { x: 8, z: 16, sx: 1.6, sz: 0.5, rot: 0, color: 'chartreuse', comb: 0, tall: 0.26 },
+  // a restrained, natural spread: fresh grass green, a warmer golden green, a moss green
+  { x: -14, z: -6, sx: 1.8, sz: 1, rot: 0.2, color: 'grass', comb: 0, tall: 1 },
+  { x: 12, z: -10, sx: 1.6, sz: 1, rot: -0.2, color: 'gold', comb: 0, tall: 1 },
+  { x: -2, z: -24, sx: 2.2, sz: 0.8, rot: 0, color: 'grass', comb: 0, tall: 1 },
+  { x: 18, z: 4, sx: 1.4, sz: 0.9, rot: 0.1, color: 'moss', comb: 0, tall: 0.95 },
+  { x: -18, z: 10, sx: 1.6, sz: 0.8, rot: 0, color: 'gold', comb: 0, tall: 0.85 },
+  { x: 4, z: 12, sx: 1.8, sz: 0.8, rot: 0, color: 'grass', comb: 0, tall: 0.8 },
 ];
 
 /** Where the low sun sits. Shared with the grass shader so the bake and the fibres agree. */

@@ -1,7 +1,7 @@
 import { framingFor, hillsFramingFor, sunlitFramingFor, type Framing } from './framing';
 import type { CloudSpec } from './Clouds';
 import { HILL_PATCHES, PATCHES, SUN, SUNLIT_PATCHES, type FieldPatch } from './paint';
-import { hillsClimb, hillsHeight, meadowHeight, sunlitHeight, sunlitPath, sunlitPathCentre, type HeightFn } from './terrain';
+import { hillsClimb, hillsHeight, meadowHeight, sunlitHeight, type HeightFn } from './terrain';
 
 export type SceneId = 'meadow' | 'hills' | 'sunlit';
 
@@ -58,10 +58,10 @@ export interface SceneProfile {
   realistic?: {
     sunColor: readonly [number, number, number];
     skyColor: readonly [number, number, number];
-    finish: { lift: number; grain: number; saturation: number; soften: number };
+    finish: { lift: number; grain: number; saturation: number; soften: number; exposure?: number };
   };
   /** Long grass combed into streams. */
-  long?: { length: number; width: number };
+  long?: { length: number; width: number; troughs?: number; silver?: number };
   clouds?: readonly CloudSpec[];
   flowers?: { flowers: number; seedHeads: number };
   /** Long blades swing their tips further for the same breeze: scale the idle motion down. */
@@ -111,38 +111,30 @@ export const SUNLIT: SceneProfile = {
   marchRays: true,
   framing: sunlitFramingFor,
   patches: SUNLIT_PATCHES,
-  // high, behind the slope and to the right: backlit blades, shadows falling toward the viewer
-  sun: normalize([0.16, 0.96, -0.16]),
+  // high and a little behind the slope: the waves' faces toward us take soft light, their troughs fall into shade
+  sun: normalize([0.32, 0.72, -0.62]),
   paint: {
-    litGain: 0.9,
+    litGain: 0,
     airFrom: 0,
     airTo: -30,
     airAmount: 0,
     airColor: [0.8, 0.88, 0.8],
     castShadows: false,
     valleyShade: 0,
-    patchSharpness: 0.9,
-    bare: sunlitPath,
-    bareColor: [0.82, 0.78, 0.55],
+    patchSharpness: 0.6,
   },
-  grass: { refDist: 30, sizeExponent: 0.2, sizeScale: 0.9, density: 0.9, screenBias: 0.75, combJitter: 0, gustWidth: 1 },
+  grass: { refDist: 30, sizeExponent: 0.25, sizeScale: 0.85, density: 1.2, screenBias: 0.75, combJitter: 0, gustWidth: 1 },
   screenPatterns: true,
-  haze: { color: [0.72, 0.82, 0.62], near: 30, far: 80, amount: 0.25 },
+  haze: { color: [0.5, 0.6, 0.46], near: 34, far: 90, amount: 0.22 },
   realistic: {
-    sunColor: [1.5, 1.45, 1.08],
-    skyColor: [0.26, 0.38, 0.24],
-    finish: { lift: 0, grain: 0.2, saturation: 0.98, soften: 1.2 },
+    // linear light, in the units the filmic tonemap expects
+    sunColor: [2.6, 2.35, 1.8],
+    skyColor: [0.4, 0.54, 0.7],
+    finish: { lift: 0, grain: 0.15, saturation: 0.92, soften: 0, exposure: 1 },
   },
-  long: { length: 9, width: 0.7 },
-  clouds: [
-    // placed to match the photograph's layout in a tall frame: big upper middle, medium right, small lower left
-    // low over the grass, as in the photograph, so each shadow sits just beneath its cloud
-    { x: -2.0, y: 10.0, z: -3.9, width: 6.4, depth: 3.6, height: 3.2, seed: 11 },
-    { x: 3.4, y: 6.6, z: 2.8, width: 6.6, depth: 3.6, height: 3.3, seed: 23 },
-    { x: -4.2, y: 4.1, z: 8.4, width: 3.7, depth: 2.2, height: 1.9, seed: 37 },
-  ],
+  long: { length: 7, width: 0.5, troughs: 0.86, silver: 0.12 },
+  clouds: [],
   flowers: { flowers: 0, seedHeads: 0 },
-  cyclist: { path: sunlitPathCentre, span: [-16, 16] },
   motion: { breeze: 0.4, flutter: 0.35 },
 };
 

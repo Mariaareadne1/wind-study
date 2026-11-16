@@ -43,6 +43,10 @@ export interface LongGrass {
   length: number;
   /** Multiplies strand width. */
   width: number;
+  /** How dark the troughs between lanes are (1: no change). */
+  troughs?: number;
+  /** How far lane crests move toward a pale highlight colour (0: not at all). */
+  silver?: number;
 }
 
 /** Soft mounds of grass a little over a world unit across: the mid scale of the fluff. */
@@ -221,12 +225,14 @@ export function buildGrass(terrain: Terrain, paint: Painting, rays: ScreenRays, 
         // lanes along the stream: crests of the waves go pale and silvery, troughs deep green
         const crest = clamp((lay.streak - 0.5) / 0.85 + (rng() - 0.5) * 0.12, 0, 1);
         // from the field's own pigment: in long grass, neighbouring blades vary only a little
-        const vary = 1 + (tone - 1) * 0.35;
+        // in linear-light grass each blade keeps a natural spread of brightness; in the earlier look, little
+        const vary = 1 + (tone - 1) * (long?.troughs !== undefined ? 2.2 : 0.35);
         const pr = (pigment2[0] / 255) * vary;
         const pg = (pigment2[1] / 255) * vary;
         const pb = (pigment2[2] / 255) * vary;
-        const trough = [pr * 0.64, pg * 0.76, pb * 0.46];
-        const silver = [mix(pr, 0.88, 0.42), mix(pg, 0.95, 0.36), mix(pb, 0.56, 0.4)];
+        const trough = [pr * (long?.troughs ?? 0.64), pg * (long?.troughs ?? 0.64) * 1.08, pb * (long?.troughs ?? 0.64) * 0.75];
+        const lift = long?.silver ?? 0.42;
+        const silver = [mix(pr, 0.88, lift), mix(pg, 0.95, lift * 0.85), mix(pb, 0.56, lift * 0.95)];
         // the short grass along the track is fresh and bright in the sun
         const k = mix(crest * crest * (3 - 2 * crest), 0.9, 0.75 * (1 - smoothstep(0.3, 0.6, patchTall)));
         tint[s * 4] = clamp(mix(trough[0], silver[0], k) * 255, 0, 255);

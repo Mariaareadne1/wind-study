@@ -1,4 +1,4 @@
-import { DataTexture, LinearFilter, Mesh, PlaneGeometry, RGBAFormat, ShaderMaterial, type Texture, UnsignedByteType, type IUniform, type Vector2, type Vector4 } from 'three';
+import { DataTexture, LinearFilter, Mesh, PlaneGeometry, RGBAFormat, ShaderMaterial, type Texture, UnsignedByteType, type IUniform, type Vector2, type Vector3, type Vector4 } from 'three';
 import { CLOUD_SHADE_GLSL, HAZE_GLSL } from '../grass/clouds';
 import type { Painting } from './paint';
 import { WORLD, type Terrain } from './terrain';
@@ -11,6 +11,7 @@ export function buildGround(
   fieldRect: IUniform<Vector4>,
   haze: { uHaze: IUniform<Vector4>; uHazeRange: IUniform<Vector2> },
   realistic = false,
+  light?: { uTerrainLight: IUniform<Texture | null>; uSun3: IUniform<Vector3>; uSunColor: IUniform<Vector3>; uSkyColor: IUniform<Vector3> },
 ): { mesh: Mesh; dispose: () => void } {
   const w = WORLD.maxX - WORLD.minX;
   const d = WORLD.maxZ - WORLD.minZ;
@@ -27,7 +28,7 @@ export function buildGround(
   const mat = new ShaderMaterial({
     glslVersion: '300 es' as never,
     defines: realistic ? { REALISTIC: 1 } : {},
-    uniforms: { uPaint: { value: tex }, uFlow: flow, uFieldRect: fieldRect, uHaze: haze.uHaze, uHazeRange: haze.uHazeRange },
+    uniforms: { uPaint: { value: tex }, uFlow: flow, uFieldRect: fieldRect, uHaze: haze.uHaze, uHazeRange: haze.uHazeRange, ...(light ?? {}) },
     vertexShader: /* glsl */ `
       out vec2 vXZ;
       out float vDist;
@@ -43,6 +44,12 @@ export function buildGround(
       uniform vec4 uHaze;
       uniform vec2 uHazeRange;
       uniform sampler2D uPaint;
+#ifdef REALISTIC
+      uniform sampler2D uTerrainLight;
+      uniform vec3 uSun3;
+      uniform vec3 uSunColor;
+      uniform vec3 uSkyColor;
+#endif
       uniform sampler2D uFlow;
       uniform vec4 uFieldRect;
       out vec4 outColor;
@@ -53,11 +60,15 @@ export function buildGround(
         vec4 paint = texture(uPaint, uv);
         vec3 c = paint.rgb;
 #ifdef REALISTIC
-        // bare ground (the track) shows in full sun; under the grass it's deep shade
-        float bare = 1.0 - smoothstep(0.02, 0.12, paint.a);
-        float shade = texture(uFlow, (vXZ - uFieldRect.xy) * uFieldRect.zw).a;
-        c = mix(c * vec3(0.18, 0.3, 0.12), c * 1.05, bare) * (1.0 - shade * 0.62);
-        outColor = vec4(applyHaze(c, vDist, uHaze, uHazeRange), 1.0);
+        // linear light: albedo × (sun through the land's own shadow + sky through its occlusion)
+        vec4 tl = texture(uTerrainLight, uv);
+        vec3 n = vec3(tl.b * 2.0 - 1.0, 0.0, tl.a * 2.0 - 1.0);
+        n.y = sqrt(max(1.0 - n.x * n.x - n.z * n.z, 0.0));
+        float clouds = texture(uFlow, (vXZ - uFieldRect.xy) * uFieldRect.zw).a;
+        vec3 albedo = pow(c, vec3(2.2));
+        float ndl = max(dot(n, uSun3), 0.0);
+        vec3 lit = uSunColor * ndl * tl.g * (1.0 - clouds) + uSkyColor * tl.r;
+        outColor = vec4(applyHaze(albedo * lit, vDist, uHaze, uHazeRange), 1.0);
         return;
 #endif
         c = c * 0.62 + vec3(0.02, 0.05, 0.05);

@@ -71,3 +71,47 @@ export function makeSwirl(seed: number): (x: number, z: number) => Lay {
     return { x: fx, z: fz, lean: tilt, streak };
   };
 }
+
+/**
+ * Grass direction that follows the land: along the contours of each wave, blended
+ * into one prevailing breeze where the ground is flat, with only slow, broad
+ * wandering on top. Neighbouring blades always agree; nothing curls tightly.
+ */
+export function makeFlow(seed: number, height: (x: number, z: number) => number): (x: number, z: number) => Lay {
+  const wander: Noise2 = makeNoise(seed + 511);
+  const lanes: Noise2 = makeNoise(seed + 512);
+  const tilt: Noise2 = makeNoise(seed + 513);
+  const gx = 0.94;
+  const gz = 0.34;
+  return (x, z) => {
+    const e = 0.8;
+    const dx = (height(x + e, z) - height(x - e, z)) / (2 * e);
+    const dz = (height(x, z + e) - height(x, z - e)) / (2 * e);
+    const slope = Math.hypot(dx, dz);
+    // along the contour, pointed the same way as the prevailing breeze
+    let cx = -dz;
+    let cz = dx;
+    if (cx * gx + cz * gz < 0) {
+      cx = -cx;
+      cz = -cz;
+    }
+    const cl = Math.hypot(cx, cz) || 1;
+    const follow = smoothstep(0.04, 0.4, slope);
+    const pot = (px: number, pz: number) => fbm(wander, px * 0.035, pz * 0.035, 2);
+    const curlX = (pot(x, z + 1) - pot(x, z - 1)) * 0.5;
+    const curlZ = -(pot(x + 1, z) - pot(x - 1, z)) * 0.5;
+    let fx = (cx / cl) * follow * 1.6 + gx * (1 - follow * 0.75) + curlX * 6;
+    let fz = (cz / cl) * follow * 1.6 + gz * (1 - follow * 0.75) + curlZ * 6;
+    const l = Math.hypot(fx, fz) || 1;
+    fx /= l;
+    fz /= l;
+    const along = x * fx + z * fz;
+    const across = -x * fz + z * fx;
+    const lane = fbm(lanes, along * 0.06, across * 0.3, 2);
+    const streak = 0.84 + 0.32 * smoothstep(-0.35, 0.35, lane);
+    // blades lie well over, a little more on the steep faces, never a hard change
+    // upright, tufty grass on the flat; swept over on the waves' slopes
+    const lean = 0.5 + 0.35 * fbm(tilt, x * 0.08, z * 0.08, 2) + 1.25 * follow;
+    return { x: fx, z: fz, lean, streak };
+  };
+}

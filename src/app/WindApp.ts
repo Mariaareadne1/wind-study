@@ -8,7 +8,8 @@ import { PointerSmoother } from '../interaction/stroke';
 import { placeCamera, screenRays } from '../scene/framing';
 import { MEADOW, type SceneProfile } from '../scene/profiles';
 import { bakeCloudShadow, buildPuffs, Clouds, makeShadowTexture } from '../scene/Clouds';
-import { makeSwirl } from '../scene/swirl';
+import { makeFlow, makeSwirl } from '../scene/swirl';
+import { bakeTerrainLight, terrainLightTexture } from '../scene/terrainLight';
 import { Cyclist } from '../scene/Cyclist';
 import { sampleGrid } from '../wind/grid';
 import type { DataTexture } from 'three';
@@ -41,6 +42,8 @@ export interface AppOptions {
   /** Disable adaptive quality (tests, benchmarks). */
   fixedQuality?: boolean;
   reducedMotion?: boolean;
+  /** Hide the grass, to look at the land alone. */
+  bare?: boolean;
   /** Which version to build. Defaults to the meadow. */
   profile?: SceneProfile;
 }
@@ -60,7 +63,8 @@ export class WindApp {
   readonly grass: GrassField;
   readonly flowers: Flowers;
   readonly uniforms;
-  private readonly compositor = new Compositor();
+  private readonly compositor: Compositor;
+  private terrainLightTex: DataTexture | null = null;
   private readonly windTex: WindTextures;
   private readonly line = new StrokeLine();
   private readonly lines: ActiveLine[] = [];
@@ -109,6 +113,7 @@ export class WindApp {
     this.opts = opts;
     this.seed = opts.seed;
     this.profile = opts.profile ?? MEADOW;
+    this.compositor = new Compositor(!!this.profile.realistic?.finish.exposure);
     this.renderer = new WebGLRenderer({
       canvas,
       antialias: false,
@@ -138,18 +143,27 @@ export class WindApp {
     this.uniforms.uHazeRange.value.set(haze.near, haze.far);
 
     const look = this.profile.realistic;
+    if (look?.finish.exposure) {
+      this.terrainLightTex = terrainLightTexture(bakeTerrainLight(this.terrain, this.profile.sun));
+      this.uniforms.uTerrainLight.value = this.terrainLightTex;
+    }
     if (look) {
       this.uniforms.uSunColor.value.set(look.sunColor[0], look.sunColor[1], look.sunColor[2]);
       this.uniforms.uSkyColor.value.set(look.skyColor[0], look.skyColor[1], look.skyColor[2]);
       this.compositor.setFinish(look.finish);
     }
-    this.grass = new GrassField(this.uniforms, !!look);
-    const ground = buildGround(this.terrain, this.painting, this.uniforms.uFlow, this.uniforms.uFieldRect, this.uniforms, !!look);
+    this.grass = new GrassField(this.uniforms, !!look, !!look?.finish.exposure);
+    const ground = buildGround(this.terrain, this.painting, this.uniforms.uFlow, this.uniforms.uFieldRect, this.uniforms, !!look, this.uniforms);
     this.groundDispose = ground.dispose;
     this.flowers = new Flowers(this.uniforms);
     this.scene.add(ground.mesh, this.grass.mesh, this.flowers.mesh);
     this.buildClouds();
     this.buildCyclist();
+    // ?bare shows the land alone, to judge its shape and light without grass
+    if (opts.bare) {
+      this.grass.mesh.visible = false;
+      this.flowers.mesh.visible = false;
+    }
 
     this.resize();
     this.rebuildGrass();
@@ -180,7 +194,8 @@ export class WindApp {
   }
 
   private get swirl(): ReturnType<typeof makeSwirl> {
-    this.swirlFn ??= makeSwirl(this.seed);
+    // linear-light scenes comb their grass along the land; the earlier look used painted eddies
+    this.swirlFn ??= this.profile.realistic?.finish.exposure ? makeFlow(this.seed, (x, z) => this.terrain.height(x, z)) : makeSwirl(this.seed);
     return this.swirlFn;
   }
 
@@ -613,6 +628,7 @@ export class WindApp {
     this.clouds?.dispose();
     this.cyclist?.dispose();
     this.shadowTex?.dispose();
+    this.terrainLightTex?.dispose();
     this.flowers.dispose();
     this.groundDispose();
     this.windTex.dispose();
