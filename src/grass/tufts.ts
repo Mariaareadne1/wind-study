@@ -200,10 +200,12 @@ export function buildGrass(terrain: Terrain, paint: Painting, rays: ScreenRays, 
         const sn = Math.sin(spread);
         const lx = lay.x * c - lay.z * sn;
         const lz = lay.x * sn + lay.z * c;
-        const lean = (under ? 0.55 : 1) * lay.lean * (0.9 + 0.2 * ((k * 0.618) % 1));
+        // short grass by the track stands more upright; long grass lies down in the stream
+        const lying = mix(0.3, 1, smoothstep(0.2, 0.75, patchTall));
+        const lean = (under ? 0.55 : 1) * lay.lean * lying * (0.9 + 0.2 * ((k * 0.618) % 1));
         // short fields stay short: length falls away faster than the patch height
         shape[s * 4] = (h / Math.max(0.78 + 0.34 * crown, 0.01)) * long.length * (under ? 0.7 : 1) * Math.min(1, patchTall);
-        shape[s * 4 + 1] *= long.width;
+        shape[s * 4 + 1] *= long.width * mix(0.6, 1, smoothstep(0.2, 0.75, patchTall));
         shape[s * 4 + 2] = lx * lean + ax * fan * 0.15;
         shape[s * 4 + 3] = lz * lean + az * fan * 0.15;
       }
@@ -218,12 +220,15 @@ export function buildGrass(terrain: Terrain, paint: Painting, rays: ScreenRays, 
       if (lay) {
         // lanes along the stream: crests of the waves go pale and silvery, troughs deep green
         const crest = clamp((lay.streak - 0.5) / 0.85 + (rng() - 0.5) * 0.12, 0, 1);
-        const pr = tint[s * 4] / 255;
-        const pg = tint[s * 4 + 1] / 255;
-        const pb = tint[s * 4 + 2] / 255;
-        const trough = [pr * 0.46, pg * 0.6, pb * 0.34];
+        // from the field's own pigment: in long grass, neighbouring blades vary only a little
+        const vary = 1 + (tone - 1) * 0.35;
+        const pr = (pigment2[0] / 255) * vary;
+        const pg = (pigment2[1] / 255) * vary;
+        const pb = (pigment2[2] / 255) * vary;
+        const trough = [pr * 0.64, pg * 0.76, pb * 0.46];
         const silver = [mix(pr, 0.88, 0.42), mix(pg, 0.95, 0.36), mix(pb, 0.56, 0.4)];
-        const k = crest * crest * (3 - 2 * crest);
+        // the short grass along the track is fresh and bright in the sun
+        const k = mix(crest * crest * (3 - 2 * crest), 0.9, 0.75 * (1 - smoothstep(0.3, 0.6, patchTall)));
         tint[s * 4] = clamp(mix(trough[0], silver[0], k) * 255, 0, 255);
         tint[s * 4 + 1] = clamp(mix(trough[1], silver[1], k) * 255, 0, 255);
         tint[s * 4 + 2] = clamp(mix(trough[2], silver[2], k) * 255, 0, 255);

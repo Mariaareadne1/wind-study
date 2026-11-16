@@ -129,16 +129,17 @@ export const SUNLIT: SceneProfile = {
   screenPatterns: true,
   haze: { color: [0.72, 0.82, 0.62], near: 30, far: 80, amount: 0.25 },
   realistic: {
-    sunColor: [1.5, 1.44, 1.08],
-    skyColor: [0.44, 0.56, 0.38],
-    finish: { lift: 0, grain: 0.25, saturation: 1.08, soften: 0.6 },
+    sunColor: [1.5, 1.45, 1.08],
+    skyColor: [0.26, 0.38, 0.24],
+    finish: { lift: 0, grain: 0.2, saturation: 0.98, soften: 1.2 },
   },
   long: { length: 9, width: 0.7 },
   clouds: [
     // placed to match the photograph's layout in a tall frame: big upper middle, medium right, small lower left
-    { x: -1.8, y: 11.2, z: 1.5, width: 5.6, depth: 3.2, height: 2.8, seed: 11 },
-    { x: 3.2, y: 8.3, z: 7.1, width: 5.8, depth: 3.2, height: 2.9, seed: 23 },
-    { x: -3.9, y: 5.5, z: 10.8, width: 3.3, depth: 2, height: 1.7, seed: 37 },
+    // low over the grass, as in the photograph, so each shadow sits just beneath its cloud
+    { x: -2.0, y: 10.0, z: -3.9, width: 6.4, depth: 3.6, height: 3.2, seed: 11 },
+    { x: 3.4, y: 6.6, z: 2.8, width: 6.6, depth: 3.6, height: 3.3, seed: 23 },
+    { x: -4.2, y: 4.1, z: 8.4, width: 3.7, depth: 2.2, height: 1.9, seed: 37 },
   ],
   flowers: { flowers: 0, seedHeads: 0 },
   cyclist: { path: sunlitPathCentre, span: [-16, 16] },

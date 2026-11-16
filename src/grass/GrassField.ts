@@ -115,7 +115,8 @@ void main() {
   vec3 L = uSun3;
   vec3 T = tangent;
   float TL = dot(T, L);
-  float fibre = sqrt(max(1.0 - TL * TL, 0.0));
+  // a blade standing up into a high sun still catches light across its face and tip
+  float fibre = mix(0.55, 1.0, sqrt(max(1.0 - TL * TL, 0.0)));
   vec3 H = normalize(L + view);
   float TH = dot(T, H);
   float sinTH = sqrt(max(1.0 - TH * TH, 0.0));
@@ -125,8 +126,10 @@ void main() {
   // blades lying toward the sun are lit along their length; lying away, they shade each other
   vec2 lieDir = length(A) > 1e-3 ? A / length(A) : vec2(0.0);
   vec2 sunFlat = normalize(L.xz + vec2(1e-4));
-  float facing = clamp(0.72 + 0.62 * dot(lieDir, sunFlat), 0.15, 1.4);
-  float sunVis = 1.0 - flow.a;
+  float facing = clamp(0.88 + 0.36 * dot(lieDir, sunFlat), 0.4, 1.3);
+  // the cloud shadow is read where this part of the blade actually is, not at its root:
+  // long blades lying over would otherwise drag shadows sideways
+  float sunVis = 1.0 - texture(uFlow, (world.xz - uFieldRect.xy) * uFieldRect.zw).a;
   vec3 sunCol = uSunColor;
   vec3 skyCol = uSkyColor;
   vec3 col = base * skyCol * mix(0.35, 1.0, ao);
@@ -172,6 +175,7 @@ void main() {
 
 const FRAG = /* glsl */ `
 precision highp float;
+// (REALISTIC comes from the material's defines)
 in vec3 vColor;
 in float vSide;
 in float vT;
@@ -180,8 +184,14 @@ void main() {
   // soft edges through alpha-to-coverage, so there's no sorting and no hard line
   float d = abs(vSide);
   float aa = max(fwidth(vSide), 1e-3);
+#ifdef REALISTIC
+  // long silky blades: a wide feather and a fading tip read as soft, slightly blurred grass
+  float a = 1.0 - smoothstep(0.2, 1.0, d);
+  a *= 1.0 - smoothstep(0.55, 1.0, vT) * 0.75;
+#else
   float a = 1.0 - smoothstep(1.0 - aa * 1.6, 1.0, d);
   a *= 1.0 - smoothstep(0.82, 1.0, vT) * 0.55;
+#endif
   outColor = vec4(vColor, a);
 }
 `;

@@ -47,23 +47,23 @@ export function buildPuffs(c: CloudSpec): Puff[] {
   const rng = makeRng(c.seed);
   const puffs: Puff[] = [];
   const centre = { cx: c.x, cy: c.y + c.height * 0.45, cz: c.z, cr: Math.max(c.width, c.height) * 0.55 };
-  const body = 150;
+  const body = 80;
   for (let i = 0; i < body; i++) {
     const a = rng() * Math.PI * 2;
     const rr = Math.sqrt(rng());
     const ex = Math.cos(a) * rr;
     const ez = Math.sin(a) * rr;
     const dome = Math.sqrt(Math.max(0, 1 - rr * rr));
-    const r = (0.15 + 0.19 * dome + 0.1 * rng()) * Math.min(c.width, c.height * 2) * 0.5;
+    const r = (0.2 + 0.2 * dome + 0.1 * rng()) * Math.min(c.width, c.height * 2) * 0.5;
     const lift = rng() * dome * c.height * 0.75;
     puffs.push({ ...centre, x: c.x + ex * c.width * 0.5, y: c.y + r * 0.55 + lift, z: c.z + ez * c.depth * 0.5, r, level: (lift + r) / (c.height + r) });
   }
   // cauliflower lumps along the upper surface
-  for (let i = 0; i < 140; i++) {
+  for (let i = 0; i < 46; i++) {
     const a = rng() * Math.PI * 2;
     const rr = Math.sqrt(rng()) * 0.85;
     const dome = Math.sqrt(Math.max(0, 1 - rr * rr));
-    const r = (0.06 + 0.09 * rng()) * c.width * 0.5;
+    const r = (0.11 + 0.12 * rng()) * c.width * 0.5;
     puffs.push({
       ...centre,
       x: c.x + Math.cos(a) * rr * c.width * 0.5,
@@ -104,7 +104,8 @@ export function bakeCloudShadow(
         if (d2 > r * r) continue;
         // denser through the middle of a puff, feathered at its rim
         const t = 1 - Math.sqrt(d2) / r;
-        light *= 1 - Math.min(1, t * 2.2) * 0.9;
+        // a crisp edge, then full shade: low cumulus throw hard-edged shadows in bright sun
+        light *= 1 - Math.min(1, t * 4.5) * 0.95;
         if (light < 0.01) break;
       }
       out[i + j * resX] = Math.round((1 - light) * 255);
@@ -176,18 +177,22 @@ void main() {
   vec2 uv = vUv / max(r, 1e-3) * min(r, 1.0);
   vec3 lump = normalize(vec3(uv, sqrt(max(1.0 - dot(uv, uv), 0.0))));
   // the cloud is shaded as one body; its lumps only modulate that
-  vec3 n = normalize(mix(vMassNormal, lump, 0.72));
+  vec3 n = normalize(mix(vMassNormal, lump, 0.78));
   // each lump is a little sphere of cotton: bright toward the light, soft grey away, rim kept light
   vec3 lightDir = normalize(uSunView);
   float lambert = dot(n, lightDir) * 0.5 + 0.5;
   float body = smoothstep(0.0, 0.9, vLevel);
-  float lit = clamp(mix(0.3, 1.2, lambert) * mix(0.7, 1.0, body), 0.0, 1.0);
-  vec3 col = mix(uShade, uLit, lit);
+  float lit = clamp(mix(0.28, 1.25, lambert) * mix(0.72, 1.0, body), 0.0, 1.0);
+  // crisp bright crowns: the tops facing up and toward the light go nearly white
+  lit = max(lit, smoothstep(0.35, 0.9, n.y) * smoothstep(0.4, 1.0, body) * 1.05);
+  vec3 col = mix(uShade, uLit, lit * lit * (3.0 - 2.0 * lit));
   // undersides pick up green light from the grass below
   col = mix(col, uBounce, (1.0 - body) * 0.28 * clamp(-n.y + 0.4, 0.0, 1.0));
   col *= 0.95 + 0.1 * billow;
+  // shade the creases where lumps meet: each lump darkens toward its rim, which carves the cauliflower
+  col *= mix(0.93, 1.0, smoothstep(1.0, 0.6, r));
   // solid through the body; only the outer rim of each lump is soft
-  float a = smoothstep(1.0, 0.88, r);
+  float a = smoothstep(1.0, 0.74, r);
   outColor = vec4(col, a);
 }
 `;
@@ -230,7 +235,7 @@ export class Clouds {
         uOffset: offset,
         uSunView: { value: [-0.45, 0.62, 0.64] },
         uLit: { value: [1.0, 1.0, 0.985] },
-        uShade: { value: [0.6, 0.65, 0.7] },
+        uShade: { value: [0.58, 0.64, 0.76] },
         uBounce: { value: [0.62, 0.72, 0.5] },
       },
     });
