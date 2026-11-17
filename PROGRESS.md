@@ -187,9 +187,15 @@ Add `bare` to see the land alone.
   order, no-WebGL fallback, reduced motion, context loss and restore, phone layout). Meadow, Hills and Sunlit snapshots
   are unchanged. Production build passes.
 
+### Grass pass (milestone 3, second round)
+- The target's grass runs right and a little downhill, across the crests. Contour-following made our strands stand
+  up into steep diagonal strokes. Combed grass now lies flatter (lean about 1.4) and follows a prevailing breeze
+  toward the viewer's right, with contour-following at a third.
+- The locks vary more in tone, with deeper troughs and brighter crests. The swells are taller (5.4), so the troughs read
+  through the longer grass.
+- Mean regional luminance gap to the target went from 21.6 to 10.7 (`scripts/regions.mjs`).
+
 ### Remaining visual differences (largest first)
-1. Grass: at desktop sizes it reads as fine velvet. The target's long, curved locks catch the light more, with visible
-   strands and deeper gaps.
-2. Clouds: woolly and a little boxy beside the target's crisp cauliflower heads and wispy tails.
-3. The target's glass has a slightly organic, liquid edge with bright blobs; ours is a clean rounded rectangle.
-4. The small white wildflowers at the lower left are not there.
+1. Clouds: woolly and a little boxy beside the target's crisp cauliflower heads and wispy tails.
+2. The target's glass has a slightly organic, liquid edge with bright blobs; ours is a clean rounded rectangle.
+3. The small white wildflowers at the lower left are not there.

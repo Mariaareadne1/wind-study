@@ -182,7 +182,7 @@ export function buildGrass(terrain: Terrain, paint: Painting, rays: ScreenRays, 
     const clumped = !!long && long.troughs !== undefined;
     // combed grass gathers into locks: each tuft lifts, reaches and catches light a little differently,
     // which is what gives the surface its volume (drawn only when combed, so other scenes are unchanged)
-    const lock = long?.combed ? { lean: mix(0.7, 1.35, rng()), length: mix(0.8, 1.25, rng()), tone: 1 + (rng() - 0.5) * 0.36 } : null;
+    const lock = long?.combed ? { lean: mix(0.7, 1.35, rng()), length: mix(0.8, 1.25, rng()), tone: 1 + (rng() - 0.5) * 0.55 } : null;
 
 
     for (let k = 0; k < STRANDS_PER_TUFT; k++) {

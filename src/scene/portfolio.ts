@@ -25,7 +25,7 @@ export function portfolioHeight(n: (x: number, y: number) => number, x: number, 
   const swell = f < 0.66 ? smoothstep(0, 0.66, f) : smoothstep(1, 0.66, f);
   // each ridge swells and subsides along its length
   const along = 0.45 + 0.8 * smoothstep(-0.3, 0.3, fbm(n, x * 0.04 + 23, Math.floor(phase) * 2.7, 2));
-  let h = climb + build * 4 * along * swell;
+  let h = climb + build * 5.4 * along * swell;
   h += 0.8 * build * fbm(n, x * 0.02 + 9, z * 0.028, 2);
   return h;
 }

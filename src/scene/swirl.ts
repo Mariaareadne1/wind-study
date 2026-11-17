@@ -88,8 +88,9 @@ export function makeFlow(
   const wander: Noise2 = makeNoise(seed + 511);
   const lanes: Noise2 = makeNoise(seed + 512);
   const tilt: Noise2 = makeNoise(seed + 513);
-  const gx = 0.94;
-  const gz = 0.34;
+  // combed grass is blown toward the viewer's right and a little downhill, across the crests
+  const gx = combed ? 0.8 : 0.94;
+  const gz = combed ? 0.6 : 0.34;
   return (x, z) => {
     const e = 0.8;
     const dx = (height(x + e, z) - height(x - e, z)) / (2 * e);
@@ -103,7 +104,7 @@ export function makeFlow(
       cz = -cz;
     }
     const cl = Math.hypot(cx, cz) || 1;
-    const follow = smoothstep(0.04, 0.4, slope);
+    const follow = smoothstep(0.04, 0.4, slope) * (combed ? 0.35 : 1);
     // the wave fronts facing the viewer (height falling toward +z) carry long grass that spills over the edge;
     // crests and backs stay short and fine
     // only the steepest band of each front: fronts face the camera, so they fill much of the frame
@@ -127,7 +128,7 @@ export function makeFlow(
     if (combed) {
       // Seen from higher up, every blade lies over along the land, so the whole surface reads as
       // combed silk: one length, gentle lanes of light, and only a little more lift in the hollows.
-      const lean = 0.95 + 0.35 * fbm(tilt, x * 0.08, z * 0.08, 2) + 0.35 * follow;
+      const lean = 1.4 + 0.3 * fbm(tilt, x * 0.08, z * 0.08, 2) + 0.35 * follow;
       return { x: fx, z: fz, lean, streak: 0.78 + 0.42 * smoothstep(-0.4, 0.4, lane), length: 1 };
     }
     const streak = 0.84 + (0.32 + 0.2 * face) * smoothstep(-0.35, 0.35, lane);

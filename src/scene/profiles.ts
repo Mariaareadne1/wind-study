@@ -177,7 +177,7 @@ export const PORTFOLIO: SceneProfile = {
   haze: { color: [0.5, 0.6, 0.46], near: 50, far: 120, amount: 0.12 },
   // finer and denser than Sunlit: the reference reads as silk from a distance
   grass: { ...SUNLIT.grass, sizeScale: 0.95, density: 1.4 },
-  long: { ...SUNLIT.long!, length: 9, width: 0.45, combed: true },
+  long: { ...SUNLIT.long!, length: 9, width: 0.55, troughs: 0.66, silver: 0.3, combed: true },
   canopy: 0.4,
   hover: { gain: 0.45 },
   // olive rather than lime: the reference's greens sit only a little above their reds, with real blue in them
