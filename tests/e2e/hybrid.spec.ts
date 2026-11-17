@@ -72,6 +72,49 @@ test.describe('the hybrid hero', () => {
     expect(await energy(page)).toBeLessThan(rest + (peak - rest) * 0.35);
   });
 
+  test('blade motion moves strands individually where the sheet moves them together; at rest both are the plate', async ({ page }) => {
+    const run = async (motion: string) => {
+      await openHybrid(page, `&motion=${motion}`);
+      await snap(page, 'rest', 0);
+      const rest = await page.evaluate(() => Array.from(window.__frames!.rest.slice(0, 4 * 1672 * 40)));
+      await snap(page, 'before', 120);
+      await page.mouse.move(1020, 768);
+      await page.mouse.down();
+      for (let i = 0; i <= 20; i++) {
+        await page.mouse.move(1020 + 13 * i, 768 + i);
+        await snap(page, 'tmp', 1);
+      }
+      await page.mouse.up();
+      await snap(page, 'during', 6);
+      // the strand-scale texture of the change: how much it varies from one pixel to the next across the patch
+      const texture = await page.evaluate(() => {
+        const A = window.__frames!.before;
+        const B = window.__frames!.during;
+        const W = 1672;
+        let rough = 0;
+        let n = 0;
+        for (let y = 700; y < 860; y++) {
+          for (let x = 1010; x < 1290; x++) {
+            const i = (y * W + x) * 4;
+            const d0 = B[i + 1] - A[i + 1];
+            const d1 = B[i + 1 + 4 * W] - A[i + 1 + 4 * W];
+            rough += Math.abs(d0 - d1);
+            n++;
+          }
+        }
+        return rough / n;
+      });
+      return { rest, texture };
+    };
+    const sheet = await run('sheet');
+    const blade = await run('blade');
+    // the ambient breeze is already leaning the grass a little at rest, so allow a hair's difference
+    let restGap = 0;
+    for (let i = 0; i < sheet.rest.length; i++) restGap += Math.abs(sheet.rest[i] - blade.rest[i]);
+    expect(restGap / sheet.rest.length).toBeLessThan(0.5);
+    expect(blade.texture).not.toBeCloseTo(sheet.texture, 1);
+  });
+
   test('a mouse passing over the grass stirs it gently; over the panel it does nothing', async ({ page }) => {
     await openHybrid(page, '&panel');
     await page.waitForFunction(() => {

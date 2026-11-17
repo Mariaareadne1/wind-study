@@ -32,6 +32,8 @@ export const HYBRID_TUNING = {
   breeze: 0.45,
   /** A hover relative to a drag. */
   hover: 0.45,
+  /** Plate px from a strand's root to its tip, for blade-level motion. */
+  bladeLen: 110,
   /** Ceiling on device pixel ratio: the plate is 1672 wide, so more resolution adds nothing. */
   maxDpr: 2,
 } as const;
@@ -39,6 +41,9 @@ export const HYBRID_TUNING = {
 export interface HybridOptions {
   plateUrl: string;
   maskUrl: string;
+  flowUrl: string;
+  /** 'blade' (default): strand by strand; 'sheet': the detail moves as one layer. */
+  motion?: 'blade' | 'sheet';
   /** Focal point of the crop, as fractions of the plate. */
   focus: readonly [number, number];
   dpr?: number;
@@ -132,6 +137,9 @@ export class HybridApp {
         uFieldMap: { value: [1 / PLATE.width, FIELD.width / PLATE.width / FIELD.depth, 0, 0] },
         uDetailLod: { value: HYBRID_TUNING.detailLod },
         uShiftPx: { value: HYBRID_TUNING.shiftPx },
+        uFlow: { value: null },
+        uBlade: { value: opts.motion === 'sheet' ? 0 : 1 },
+        uBladeLen: { value: HYBRID_TUNING.bladeLen },
         uDebug: { value: opts.debug ?? 0 },
       },
     });
@@ -152,15 +160,16 @@ export class HybridApp {
 
   /** Resolves once the plate and mask are on the GPU. */
   async load(): Promise<void> {
-    const [plate, mask] = await Promise.all([loadTexture(this.opts.plateUrl, true), loadTexture(this.opts.maskUrl, false)]);
+    const loaded = await Promise.all([loadTexture(this.opts.plateUrl, true), loadTexture(this.opts.maskUrl, false), loadTexture(this.opts.flowUrl, false)]);
     if (this.disposed) {
-      plate.dispose();
-      mask.dispose();
+      for (const t of loaded) t.dispose();
       return;
     }
-    this.textures = [plate, mask];
+    const [plate, mask, flow] = loaded;
+    this.textures = loaded;
     this.material.uniforms.uPlate.value = plate;
     this.material.uniforms.uMask.value = mask;
+    this.material.uniforms.uFlow.value = flow;
     this.sim.step();
     this.sim.step();
   }

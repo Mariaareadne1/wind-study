@@ -8,12 +8,13 @@ import './hybrid.css';
 
 const PLATE_URL = '/hybrid/clean-landscape.webp';
 const MASK_URL = '/hybrid/grass-mask.png';
+const FLOW_URL = '/hybrid/grass-flow.webp';
 /** The glass's optics in CSS pixels at the reference panel width (478 at 1672 wide). */
 const GLASS = { referenceWidth: 478, radius: 48, bevel: 34, thickness: 26, maxRadius: 64 };
 
 type Props = {
   content?: HeroContent;
-  options?: { compare?: boolean; showPanel?: boolean; dpr?: number; debug?: number };
+  options?: { compare?: boolean; showPanel?: boolean; dpr?: number; debug?: number; motion?: 'blade' | 'sheet' };
   onReady?: (app: HybridApp) => void;
 };
 
@@ -54,7 +55,7 @@ export function HybridHero({ content = DEFAULT_CONTENT, options = {}, onReady }:
       }
     };
     try {
-      app = new HybridApp(canvas, { plateUrl: PLATE_URL, maskUrl: MASK_URL, focus, dpr: options.dpr, reducedMotion, debug: options.debug });
+      app = new HybridApp(canvas, { plateUrl: PLATE_URL, maskUrl: MASK_URL, flowUrl: FLOW_URL, motion: options.motion, focus, dpr: options.dpr, reducedMotion, debug: options.debug });
       appRef.current = app;
       canvas.addEventListener('webglcontextlost', lost);
       canvas.addEventListener('webglcontextrestored', restored);

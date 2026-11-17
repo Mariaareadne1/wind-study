@@ -7,7 +7,8 @@ import type { WindApp } from '../app/WindApp';
 /**
  * The image-directed hero as a standalone page (?scene=portfolio-hybrid). Switches:
  *   compare   no animation loop, no panel (add `panel` to include it); step it from tests
- *   debug=1   show the grass mask (red: held still); debug=2 the wind's bend field
+ *   debug=1   show the grass mask (red: held still); debug=2 the wind's bend field; debug=3 strand directions
+ *   motion=sheet   the earlier motion, the detail moving as one layer (default: blade by blade)
  *   dpr       fixed device pixel ratio
  */
 export function HybridPage() {
@@ -23,7 +24,7 @@ export function HybridPage() {
     <div className="hero-page">
       <HybridHero
         content={contentFromQuery(q)}
-        options={{ compare, showPanel: compare ? q.has('panel') : true, dpr: Number(q.get('dpr')) || undefined, debug: Number(q.get('debug')) || 0 }}
+        options={{ compare, showPanel: compare ? q.has('panel') : true, dpr: Number(q.get('dpr')) || undefined, debug: Number(q.get('debug')) || 0, motion: q.get('motion') === 'sheet' ? 'sheet' : 'blade' }}
         onReady={(app) => {
           const store = new Store();
           store.set({ loading: false });

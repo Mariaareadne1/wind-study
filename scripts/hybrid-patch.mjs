@@ -11,7 +11,7 @@ const [prefix = 'artifacts/vs/patch', mode = 'drag', cxs = '1150', cys = '780'] 
 const W = 1672, H = 941, CX = +cxs, CY = +cys, PW = 300, PH = 200;
 const b = await chromium.launch({ args: ['--use-angle=metal', '--enable-gpu'] });
 const p = await b.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
-await p.goto(`${process.env.URL ?? 'http://localhost:5428/'}?scene=portfolio-hybrid&compare&dpr=1`);
+await p.goto(`${process.env.URL ?? 'http://localhost:5428/'}?scene=portfolio-hybrid&compare&dpr=1&${process.env.EXTRA ?? ""}`);
 await p.waitForFunction(() => window.__wind, null, { timeout: 60000 });
 const step = (n) => p.evaluate((n) => new Promise((res) => { const a = window.__wind.app; a.stepFrames(n); a.onceAfterFrame(() => res(a.bendEnergy())); }), n);
 const grab = async (name) => {

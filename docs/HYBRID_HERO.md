@@ -12,6 +12,7 @@ node scripts/hybrid-patch.mjs artifacts/vs/patch drag   # one-patch proof: crops
 node scripts/hybrid-film.mjs artifacts/hybrid-film       # real-time recording plus a 2× zoom of the patch
 node scripts/plate-diff.mjs render.png                   # fidelity of a render against the clean plate
 node scripts/hybrid-mask.mjs                             # re-author the grass mask (debug view in artifacts/)
+node scripts/hybrid-flow.mjs                             # re-measure the strand directions (see the file for the final step)
 ```
 
 Switches on the URL:
@@ -19,6 +20,8 @@ Switches on the URL:
 - `compare`: no animation loop and no panel; add `panel` to include it.
 - `debug=1`: shows the mask.
 - `debug=2`: shows the wind's bend field.
+- `debug=3`: shows the strand directions.
+- `motion=sheet`: the earlier single-layer motion.
 - `dpr`: sets the pixel density.
 - `?work=…&playground=…&about=…&arrow=…&year=…`: override the destinations and the year.
 
@@ -31,7 +34,7 @@ Switches on the URL:
    - from `src/wind/`: `WindSim`, `WindTextures`, `field`, `response`, `gust`, `ambient`, `grid`;
    - `src/interaction/` (`HoverBreeze`, `stroke`);
    - from `src/state/`: `tuning.ts` and `store.ts` (only the defaults are used);
-   - `public/hybrid/` (the plate and the mask).
+   - `public/hybrid/` (the plate, the mask and the strand direction field).
 2. Dependencies are `three`, `react`, `@fontsource-variable/inter-tight` and `@fontsource-variable/newsreader`.
    Import the two fonts in the entry: `opsz.css` for Newsreader.
 3. Render it with your real destinations:
@@ -70,6 +73,8 @@ No third-party source code is copied into this branch, so no extra licence notic
 
 - **The plate is not the approved image:** it is a separate, very close generation, a little brighter and more
   saturated, with small differences in detail.
-- **Grass motion is detail-only:** strands and glints slide and settle coherently, but no blade bends from a root.
+- **Grass motion is image-space:** strands bend from root to tip and move independently, along a direction field
+  measured from the plate (`?motion=sheet` for the earlier single-layer motion). There is no blade geometry behind
+  the photo, so at the peak of a hard drag some patches soften or briefly double.
 - **Clouds:** they stay still (part of the plate).
 - **The glass:** a clean rounded rectangle, slightly darker and clearer than the approved panel.

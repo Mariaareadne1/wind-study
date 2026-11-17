@@ -306,3 +306,31 @@ the approved picture and animate only its fine grass detail. The procedural hero
    clean rounded rectangle without the reference's slight liquid wobble.
 3. Grass motion is detail-only: convincing as a breeze, not as individual blades bending.
 4. Clouds are part of the plate and stay still, as the brief asked.
+
+### Blade-level motion (follow-up, 2026-11-16)
+Goal: strands that move individually and bend from root to tip, instead of the detail sliding as one sheet.
+- **Direction field:** `scripts/hybrid-flow.mjs` computes it from a structure tensor of the plate's luminance. The
+  strand runs at right angles to the dominant gradient; the field stores the doubled angle and its coherence.
+  Shipped as `public/hybrid/grass-flow.webp` (418 × 235, lossless, 186 KB). Debug view: `?debug=3`, and
+  `artifacts/hybrid-flow-debug.png` with line glyphs.
+- **Blade warp (`bladeShift` in `src/hybrid/plate.ts`):** in each strand's own frame, noise that changes every
+  ~8 px across but slowly along the strand gives each one its own phase and strength (0.75–1.25). A smooth wave
+  along the strand (110 px) stands in for root to tip, so tips travel and roots hold (reach 0.45–1). Blades sway
+  across themselves more than they slide along themselves. The stiff spring flutters the tips. Total shift is capped
+  at 6 plate px.
+- **Bug found on the way:** the first version took strand coordinates from absolute plate pixels, so pixel-level
+  wobble in the measured angle was magnified about 1700× into phase noise, and the grass turned to speckle. Each
+  40 px tile now uses its own constant direction, and the four nearest tiles are blended.
+- **Tuning by eye:** a 46 px root-to-tip wave curled strands into S-shapes; 110 px gives one bend per strand.
+- **A/B:** `?motion=sheet` keeps the earlier motion. Evidence:
+  - `docs/media/hybrid/blade-vs-sheet-crops.png`: before | sheet | blade, native pixels ×4, at the peak of a drag;
+  - `blade-vs-sheet-zoom.mp4`: the same gestures, side by side, real time;
+  - `blade-hero-interaction.mp4`.
+- **Unchanged:** at rest the render still matches the plate (median 2, max 47); the drag still never moves clouds
+  (0) or far hills (0.03); 60 fps on desktop and phone.
+- **Tests:** a new browser test checks that blade and sheet agree at rest but differ in the strand-scale texture of
+  the change. 63 unit and 68 browser pass, plus 8 hybrid on the production build.
+- **Honest read:** strands now bend and move independently: clearly more grass-like than the sheet, and still with
+  no tearing. At the peak of a hard drag, some patches soften or briefly double, because a warp can only move what
+  the photo already shows; there is no geometry behind a blade. Hover and the ambient breeze stay well below that
+  point.
