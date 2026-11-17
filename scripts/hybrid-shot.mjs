@@ -7,9 +7,9 @@ const p = await b.newPage({ viewport: { width: +W, height: +H }, deviceScaleFact
 const errs = [];
 p.on('pageerror', (e) => errs.push(e.message));
 p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
-await p.goto(`${process.env.URL ?? 'http://localhost:5428/'}?scene=portfolio-hybrid&compare&dpr=${DPR}&${extra}`);
+await p.goto(`${process.env.URL ?? 'http://localhost:5428/'}?scene=${process.env.SCENE ?? 'portfolio-hybrid'}&compare&dpr=${DPR}&${extra}`);
 await p.waitForFunction(() => window.__wind, null, { timeout: 60000 });
-const data = await p.evaluate(() => new Promise((res) => { const w = window.__wind; w.app.stepFrames(Number(new URLSearchParams(location.search).get('steps') ?? 0)); w.app.onceAfterFrame(() => res(w.app.canvas.toDataURL('image/png'))); }));
+const data = await p.evaluate(() => new Promise((res) => { const w = window.__wind; const t = Number(new URLSearchParams(location.search).get('t') ?? -1); if (t >= 0 && w.app.setTime) w.app.time = t; w.app.stepFrames(Number(new URLSearchParams(location.search).get('steps') ?? 0)); w.app.onceAfterFrame(() => res(w.app.canvas.toDataURL('image/png'))); }));
 writeFileSync(`${prefix}.png`, Buffer.from(data.split(',')[1], 'base64'));
 await p.waitForTimeout(700);
 await p.screenshot({ path: `${prefix}-page.png` });

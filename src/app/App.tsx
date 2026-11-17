@@ -5,6 +5,7 @@ import { Controls } from '../ui/Controls';
 import { WindApp } from './WindApp';
 import { HeroPage } from '../hero/HeroPage';
 import { HybridPage } from '../hybrid/HybridPage';
+import { LivingPage } from '../living/LivingPage';
 import * as patterns from '../wind/patterns';
 import { profileFor } from '../scene/profiles';
 import { strandPoint, BEND_GLSL } from '../grass/bend';
@@ -47,6 +48,7 @@ export function App() {
   const scene = query().get('scene');
   if (scene === 'portfolio') return <HeroPage />;
   if (scene === 'portfolio-hybrid') return <HybridPage />;
+  if (scene === 'portfolio-living') return <LivingPage />;
   return <Stage />;
 }
 

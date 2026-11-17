@@ -334,3 +334,66 @@ Goal: strands that move individually and bend from root to tip, instead of the d
   no tearing. At the peak of a hard drag, some patches soften or briefly double, because a warp can only move what
   the photo already shows; there is no geometry behind a blade. Hover and the ambient breeze stay well below that
   point.
+
+## Living hero (`?scene=portfolio-living`), branch `portfolio-living` — started 2026-11-16
+
+Brief: bring the approved scene to life without distorting it. Grass blows, clouds drift, their shadows move with them.
+Nothing may read as a gel, a ripple, or a warped photograph. Branched from `portfolio-hybrid` (which is `sunlit` plus
+the hybrid commits), because the plate, mask and glass it reuses live there. `sunlit` and every other scene are
+untouched.
+
+### Milestone 1: why the hybrid read as gel
+- Its motion moved the photo's fine detail across the photo's stable shading, with a displacement field that varied
+  smoothly from pixel to pixel. Everything nearby moved together, so the grass surface sheared as one membrane: a gel.
+- The strands slid over shading that stayed put, which is the signature of heat shimmer. Blade mode only gave each
+  strand its own phase within the same principle; at the peak of a drag it still smeared.
+- Lesson: no displacement of the photo can make grass blow. The picture has no geometry behind its strands.
+
+### The new method: layers, each doing what it would do in the world
+`scripts/living-layers.mjs` separates the clean plate once, offline; `src/living/scene.ts` composites every frame:
+- **Land** (`public/living/land.webp`): the landscape with the clouds lifted out. Holes are filled with a smooth tone
+  from the surrounding land, plus real grass texture mirrored across each hole's edge, only where the cloud was opaque.
+  Only a thin rim is ever uncovered, since the clouds drift at most about 20 px.
+- **Clouds** (`cloud-N.png`): each cloud's own sprite. Colour is premultiplied in the top half and alpha in the bottom
+  half, unmixed against the fill's smooth tone, so no fill texture travels with the cloud. The matte keys on
+  greenness (green minus the larger of red and blue): clouds, down to their grey-blue bases, are near zero, and grass
+  is clearly positive even in shade. Each cloud wanders on its own slow loop (periods 59–83 s, at most about 20 px
+  from where the picture put it).
+- **Shadows** (`shadow-N.png`): each cloud's silhouette, blurred and flattened, offset by hand onto the plate's own
+  shadow. Composited as light: the plate's shadow is divided out and the same shadow applied where the drifted cloud
+  now casts it. Depth 0.2, and a departing shadow may lift the light by at most 12%, because the sprites only
+  approximate the real shadows.
+- **Grass**: wind shows in a field as light, not shape. Where a gust passes, blades tilt and catch the sun. So bands
+  of silvery brightening travel downwind (toward the upper right, the way the grass lies), with darker troughs
+  between. They are wider and quicker in the foreground, finer and slower far away, and only on grass. Only the
+  light changes; no pixel moves. `?life=` scales it (0–3).
+
+### Bugs found by looking
+- My first donor-patch fill copied neighbouring clouds into the holes; replaced by the mirror fill.
+- Cloud colour unmixed by dividing by a small alpha drew bright outlines at 8-bit precision; replaced by premultiplied
+  storage.
+- A pixel of one cloud was written into an overlapping sprite as colour with zero alpha, adding a rectangle of cloud.
+  Each sprite now holds only its own cloud.
+- Grey-blue cloud bases left in the land were exposed as a cloud drifted, as were facets from the fill showing through
+  the translucent bases. Fixed by the greenness matte, by unmixing against tone, and by texture only where the cloud
+  was opaque.
+- A 54 px drift (amplitude measured from the arrangement doubles a ±30 loop) uncovered too much fill. The drift is
+  now at most about 20 px.
+- Neutralising cloud colour to remove grass tint made the clouds grey and hazy, and was reverted. The greenness matte
+  solved the same problem properly.
+
+### Milestone 2–3 result: the ambient scene
+- At rest (t = 0, no wind light) the composite matches the plate: median 2, 99th percentile 9, max 80, 41.4 dB.
+- Real time, no input (`node scripts/living-film.mjs prefix`), mean change per second:
+  - foreground grass: 2.5–5.9 levels;
+  - clouds and far hills: about 1.2–2 (the video's own noise floor). The grass is the moving thing; nothing else
+    shimmers.
+- Evidence:
+  - `docs/media/living/ambient-realtime.mp4`;
+  - `ambient-foreground-zoom.mp4`;
+  - `ambient-timelapse-15x.mp4` (80 s of scene time, to judge the clouds and shadows);
+  - `layers-debug.png`.
+- **Honest read:** the picture is preserved and nothing warps. The grass life is light passing through the field, which
+  is how wind looks on a real field from this distance, not blades whipping. Cloud drift is very slow by design;
+  only the time-lapse makes it obvious. Remaining blemishes: when a cloud is at its furthest drift, a couple of small
+  smudges show at its base.
