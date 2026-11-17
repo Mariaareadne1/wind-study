@@ -1,261 +1,335 @@
 import {
-  DataTexture,
-  InstancedBufferAttribute,
-  InstancedBufferGeometry,
+  BufferGeometry,
+  Color,
+  CustomBlending,
+  Float32BufferAttribute,
+  Group,
+  HalfFloatType,
   LinearFilter,
+  Matrix4,
   Mesh,
+  OneFactor,
+  OneMinusSrcAlphaFactor,
+  OrthographicCamera,
   PlaneGeometry,
-  RedFormat,
+  RGBAFormat,
+  Scene,
   ShaderMaterial,
-  UnsignedByteType,
+  Vector3,
+  Vector4,
+  WebGLRenderTarget,
   type PerspectiveCamera,
-  type Vector3,
+  type WebGLRenderer,
 } from 'three';
-import { makeRng } from './noise';
-import type { Terrain } from './terrain';
+import { buildLumps, cloudBox, domeOf, MAX_LUMPS, type CloudSpec, type Lump } from './cloudShape';
 
-/** A cumulus floating low over the grass: centre of its flat base, and its size. */
-export interface CloudSpec {
-  x: number;
-  y: number;
-  z: number;
-  width: number;
-  depth: number;
-  height: number;
-  seed: number;
+export type { CloudSpec } from './cloudShape';
+
+/** Light the clouds are rendered in: the same linear sun and sky as the land. */
+export interface CloudLight {
+  /** Direction the clouds are modelled by. */
+  sun: readonly [number, number, number];
+  sunColor: readonly [number, number, number];
+  skyColor: readonly [number, number, number];
+  /** Light thrown up off the sunlit grass onto the undersides. */
+  groundColor: readonly [number, number, number];
 }
 
-export interface Puff {
-  x: number;
-  y: number;
-  z: number;
-  r: number;
-  /** Centre of the whole cloud, so lumps shade as one mass. */
-  cx: number;
-  cy: number;
-  cz: number;
-  cr: number;
-  /** 0 at the cloud's base, 1 at its crown: shading reads it. */
-  level: number;
+/** Longest side of one cloud's baked image, in pixels: they are soft, so this is plenty. */
+const MAX_BAKE = 1024;
+/** A cloud's bake is padded around its projected box, as a fraction of its size. */
+const PAD = 0.04;
+
+const BAKE_VERT = /* glsl */ `
+out vec2 vUv;
+void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }
+`;
+
+// Raymarched once per cloud into a texture. Density is soft masses eroded by billowing noise;
+// light is Beer-Lambert toward the sun with a few scattering octaves (Wrenninge's approximation
+// of multiple scattering), a forward-and-back phase, the sky from above and the grass from below.
+const BAKE_FRAG = /* glsl */ `
+precision highp float;
+in vec2 vUv;
+uniform vec4 uLumps[${MAX_LUMPS}];
+uniform int uCount;
+uniform vec3 uBoxMin;
+uniform vec3 uBoxMax;
+uniform mat4 uInvViewProj;
+uniform vec3 uCamPos;
+uniform vec4 uRect;
+uniform vec3 uSun;
+uniform vec3 uSunColor;
+uniform vec3 uSkyColor;
+uniform vec3 uGroundColor;
+uniform float uSeed;
+uniform vec3 uDomeC;
+uniform vec3 uDomeR;
+out vec4 outColor;
+
+float hash3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float noise3(vec3 x) {
+  vec3 i = floor(x), f = fract(x);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(hash3(i), hash3(i + vec3(1, 0, 0)), f.x), mix(hash3(i + vec3(0, 1, 0)), hash3(i + vec3(1, 1, 0)), f.x), f.y),
+             mix(mix(hash3(i + vec3(0, 0, 1)), hash3(i + vec3(1, 0, 1)), f.x), mix(hash3(i + vec3(0, 1, 1)), hash3(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+}
+// billows: rounded bumps, the cauliflower of a cumulus
+float billow(vec3 p) {
+  float s = 0.0, a = 0.5;
+  for (int i = 0; i < 5; i++) { s += a * (1.0 - abs(noise3(p) * 2.0 - 1.0)); p = p * 2.07 + vec3(3.1, 1.7, 5.3); a *= 0.55; }
+  return s / 1.0;
+}
+const float BLEND = 8.0;
+const float SUN_GAIN = 0.7;
+const float AMB_GAIN = 0.32;
+float shape(vec3 p) {
+  // a smooth union, so the masses merge into one body instead of reading as balls
+  float sum = exp(BLEND * (1.0 - length((p - uDomeC) / uDomeR)));
+  for (int i = 0; i < ${MAX_LUMPS}; i++) {
+    if (i >= uCount) break;
+    vec4 l = uLumps[i];
+    sum += exp(BLEND * (1.0 - length(p - l.xyz) / l.w));
+  }
+  float s = max(log(max(sum, 1e-6)) / BLEND, 0.0);
+  float b = smoothstep(uBoxMin.y, uBoxMin.y + 0.35, p.y);
+  return s * b;
+}
+float density(vec3 p, bool fine) {
+  float s = shape(p);
+  if (s <= 0.0) return 0.0;
+  vec3 q = p * 1.25 + uSeed;
+  // a slow warp, so billows sprawl and lean instead of sitting on a grid of bumps
+  q += vec3(noise3(p * 0.35 + 7.0), noise3(p * 0.35 + 19.0), noise3(p * 0.35 + 31.0)) * 1.6 - 0.8;
+  // erode the masses, harder near their rim and less on the flat base
+  float hf = clamp((p.y - uBoxMin.y) / (uBoxMax.y - uBoxMin.y), 0.0, 1.0);
+  // billows bite into the upper surface; the flat base is cut cleaner, and wispier
+  float e = (billow(q) - 0.5) * 0.4 * mix(0.4, 1.0, smoothstep(0.0, 0.3, hf));
+  if (fine) e += (billow(q * 3.1) - 0.5) * 0.09;
+  float d = s - e - 0.12;
+  return clamp(d * 3.5, 0.0, 1.0);
+}
+vec2 box(vec3 ro, vec3 rd) {
+  // never exactly axis-aligned, so no 0 × inf at a face
+  vec3 inv = 1.0 / (rd + vec3(1e-7) * step(abs(rd), vec3(1e-7)));
+  vec3 a = (uBoxMin - ro) * inv, b = (uBoxMax - ro) * inv;
+  vec3 lo = min(a, b), hi = max(a, b);
+  return vec2(max(max(lo.x, lo.y), lo.z), min(min(hi.x, hi.y), hi.z));
+}
+float hg(float c, float g) { float g2 = g * g; return (1.0 - g2) / (4.0 * 3.14159 * pow(1.0 + g2 - 2.0 * g * c, 1.5)); }
+
+void main() {
+  vec2 ndc = mix(uRect.xy, uRect.zw, vUv);
+  vec4 far = uInvViewProj * vec4(ndc, 1.0, 1.0);
+  vec3 rd = normalize(far.xyz / far.w - uCamPos);
+  vec2 t = box(uCamPos, rd);
+  if (t.y <= max(t.x, 0.0)) { outColor = vec4(0.0); return; }
+  const int STEPS = 112;
+  float len = t.y - max(t.x, 0.0);
+  float dt = len / float(STEPS);
+  float tt = max(t.x, 0.0) + dt * hash3(vec3(gl_FragCoord.xy, uSeed));
+  const float SIGMA = 9.0;
+  vec3 col = vec3(0.0);
+  float T = 1.0;
+  float cosT = dot(rd, uSun);
+  float extent = uBoxMax.y - uBoxMin.y;
+  for (int i = 0; i < STEPS; i++) {
+    vec3 p = uCamPos + rd * tt;
+    tt += dt;
+    float d = density(p, true);
+    if (d <= 0.001) continue;
+    // optical depth toward the sun, in growing steps
+    float od = 0.0;
+    float ls = extent * 0.035;
+    vec3 lp = p;
+    for (int k = 0; k < 6; k++) { lp += uSun * ls; od += density(lp, false) * ls; ls *= 1.6; }
+    vec3 sunL = vec3(0.0);
+    float a = 1.0, b = 1.0, c = 1.0;
+    for (int o = 0; o < 3; o++) {
+      float ph = mix(hg(cosT, 0.35 * c), hg(cosT, -0.2 * c), 0.3) * 4.0 * 3.14159;
+      sunL += a * ph * exp(-SIGMA * b * od);
+      a *= 0.45; b *= 0.5; c *= 0.5;
+    }
+    // a little darker just inside the surface facing away: the "powder" of dense cloud
+    float powder = 1.0 - exp(-SIGMA * 2.0 * d * 0.25);
+    float hf = clamp((p.y - uBoxMin.y) / extent, 0.0, 1.0);
+    vec3 amb = mix(uGroundColor, uSkyColor * vec3(1.2, 1.3, 1.5), smoothstep(0.0, 0.9, hf)) * mix(0.5, 1.0, hf);
+    vec3 S = uSunColor * sunL * SUN_GAIN * mix(0.45, 1.0, powder) + amb * AMB_GAIN;
+    float ext = SIGMA * d;
+    float tr = exp(-ext * dt);
+    col += T * S * (1.0 - tr);
+    T *= tr;
+    if (T < 0.004) break;
+  }
+  outColor = vec4(col, 1.0 - T);
+}
+`;
+
+const DRAW_VERT = /* glsl */ `
+uniform vec4 uRect;
+uniform vec3 uCentre;
+uniform vec3 uOffset;
+out vec2 vUv;
+void main() {
+  // the bake was made from where the cloud was; slide its image with the cloud as it drifts
+  vec4 a = projectionMatrix * viewMatrix * vec4(uCentre, 1.0);
+  vec4 b = projectionMatrix * viewMatrix * vec4(uCentre + uOffset, 1.0);
+  vec2 shift = b.xy / b.w - a.xy / a.w;
+  vUv = position.xy;
+  gl_Position = vec4(mix(uRect.xy, uRect.zw, position.xy) + shift, 0.0, 1.0);
+}
+`;
+
+const DRAW_FRAG = /* glsl */ `
+precision highp float;
+in vec2 vUv;
+uniform sampler2D uImage;
+out vec4 outColor;
+void main() { outColor = texture(uImage, vUv); }
+`;
+
+interface Baked {
+  spec: CloudSpec;
+  lumps: Lump[];
+  box: { min: [number, number, number]; max: [number, number, number] };
+  target: WebGLRenderTarget | null;
+  material: ShaderMaterial;
+  mesh: Mesh;
+  distance: number;
 }
 
 /**
- * Builds a cotton-ball cumulus from overlapping spheres: a broad, nearly flat
- * base, a domed body, and smaller cauliflower lumps on top.
+ * Photographic cumulus: each cloud is raymarched once, from the camera, into its own image,
+ * then drawn as a screen-aligned card that slides with the cloud's slow drift. Rebaked when the
+ * camera moves (a resize), so the frame never pays for the volume.
  */
-export function buildPuffs(c: CloudSpec): Puff[] {
-  const rng = makeRng(c.seed);
-  const puffs: Puff[] = [];
-  const centre = { cx: c.x, cy: c.y + c.height * 0.45, cz: c.z, cr: Math.max(c.width, c.height) * 0.55 };
-  const body = 80;
-  for (let i = 0; i < body; i++) {
-    const a = rng() * Math.PI * 2;
-    const rr = Math.sqrt(rng());
-    const ex = Math.cos(a) * rr;
-    const ez = Math.sin(a) * rr;
-    const dome = Math.sqrt(Math.max(0, 1 - rr * rr));
-    const r = (0.2 + 0.2 * dome + 0.1 * rng()) * Math.min(c.width, c.height * 2) * 0.5;
-    const lift = rng() * dome * c.height * 0.75;
-    puffs.push({ ...centre, x: c.x + ex * c.width * 0.5, y: c.y + r * 0.55 + lift, z: c.z + ez * c.depth * 0.5, r, level: (lift + r) / (c.height + r) });
-  }
-  // cauliflower lumps along the upper surface
-  for (let i = 0; i < 46; i++) {
-    const a = rng() * Math.PI * 2;
-    const rr = Math.sqrt(rng()) * 0.85;
-    const dome = Math.sqrt(Math.max(0, 1 - rr * rr));
-    const r = (0.11 + 0.12 * rng()) * c.width * 0.5;
-    puffs.push({
-      ...centre,
-      x: c.x + Math.cos(a) * rr * c.width * 0.5,
-      y: c.y + dome * c.height * 0.85 + r * 0.6,
-      z: c.z + Math.sin(a) * rr * c.depth * 0.5,
-      r,
-      level: Math.min(1, (dome * c.height * 0.85 + r) / c.height),
-    });
-  }
-  return puffs;
-}
-
-/** Cloud shadow cover over a world rectangle, along the sun, soft-edged. 0 sunlit, 255 full shadow. */
-export function bakeCloudShadow(
-  puffs: readonly Puff[],
-  terrain: Terrain,
-  sun: readonly [number, number, number],
-  rect: { minX: number; minZ: number; width: number; depth: number },
-  resX: number,
-  resZ: number,
-): Uint8Array {
-  const out = new Uint8Array(resX * resZ);
-  const [lx, ly, lz] = sun;
-  for (let j = 0; j < resZ; j++) {
-    const z = rect.minZ + ((j + 0.5) / resZ) * rect.depth;
-    for (let i = 0; i < resX; i++) {
-      const x = rect.minX + ((i + 0.5) / resX) * rect.width;
-      const y = terrain.height(x, z);
-      let light = 1;
-      for (const p of puffs) {
-        const wx = p.x - x;
-        const wy = p.y - y;
-        const wz = p.z - z;
-        const along = wx * lx + wy * ly + wz * lz;
-        if (along <= 0) continue;
-        const d2 = wx * wx + wy * wy + wz * wz - along * along;
-        const r = p.r;
-        if (d2 > r * r) continue;
-        // denser through the middle of a puff, feathered at its rim
-        const t = 1 - Math.sqrt(d2) / r;
-        // a crisp edge, then full shade: low cumulus throw hard-edged shadows in bright sun
-        light *= 1 - Math.min(1, t * 4.5) * 0.95;
-        if (light < 0.01) break;
-      }
-      out[i + j * resX] = Math.round((1 - light) * 255);
-    }
-  }
-  return out;
-}
-
-export function makeShadowTexture(data: Uint8Array, w: number, h: number): DataTexture {
-  const t = new DataTexture(data, w, h, RedFormat, UnsignedByteType);
-  t.minFilter = LinearFilter;
-  t.magFilter = LinearFilter;
-  t.needsUpdate = true;
-  return t;
-}
-
-const VERT = /* glsl */ `
-precision highp float;
-in vec4 aPuff; // x, y, z, radius
-in vec4 aCloud; // centre of the whole cloud, its radius
-in float aLevel;
-uniform vec3 uOffset;
-out vec2 vUv;
-out float vLevel;
-out vec3 vCentreView;
-out float vRadius;
-out vec3 vMassNormal;
-void main() {
-  vec3 centre = aPuff.xyz + uOffset;
-  vec4 mv = viewMatrix * vec4(centre, 1.0);
-  // a little oversized: the fluffy rim needs room
-  mv.xy += position.xy * aPuff.w * 1.25;
-  vUv = position.xy * 1.25;
-  vLevel = aLevel;
-  vRadius = aPuff.w;
-  vCentreView = (viewMatrix * vec4(centre, 1.0)).xyz;
-  // where this lump sits on the cloud as a whole, in view space
-  vec3 fromMass = (viewMatrix * vec4(centre, 1.0)).xyz - (viewMatrix * vec4(aCloud.xyz + uOffset, 1.0)).xyz;
-  vMassNormal = normalize(fromMass / aCloud.w + vec3(0.0, 0.0, 0.6));
-  gl_Position = projectionMatrix * mv;
-}
-`;
-
-const FRAG = /* glsl */ `
-precision highp float;
-in vec2 vUv;
-in float vLevel;
-in vec3 vCentreView;
-in float vRadius;
-in vec3 vMassNormal;
-uniform vec3 uSunView;
-uniform vec3 uLit;
-uniform vec3 uShade;
-uniform vec3 uBounce;
-out vec4 outColor;
-float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
-float vnoise(vec2 p) {
-  vec2 i = floor(p), f = fract(p);
-  f = f * f * (3.0 - 2.0 * f);
-  return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
-}
-void main() {
-  // keep the noise inputs small: a large offset makes the hash band into streaks
-  float seed = fract(dot(vCentreView, vec3(0.037, 0.071, 0.013))) * 17.0;
-  vec2 q = vUv * 2.6 + seed;
-  float billow = vnoise(q) * 0.55 + vnoise(q * 2.3) * 0.3 + vnoise(q * 5.1) * 0.15;
-  float r = length(vUv) + (billow - 0.5) * 0.18;
-  if (r > 1.0) discard;
-  vec2 uv = vUv / max(r, 1e-3) * min(r, 1.0);
-  vec3 lump = normalize(vec3(uv, sqrt(max(1.0 - dot(uv, uv), 0.0))));
-  // the cloud is shaded as one body; its lumps only modulate that
-  vec3 n = normalize(mix(vMassNormal, lump, 0.78));
-  // each lump is a little sphere of cotton: bright toward the light, soft grey away, rim kept light
-  vec3 lightDir = normalize(uSunView);
-  float lambert = dot(n, lightDir) * 0.5 + 0.5;
-  float body = smoothstep(0.0, 0.9, vLevel);
-  float lit = clamp(mix(0.28, 1.25, lambert) * mix(0.72, 1.0, body), 0.0, 1.0);
-  // crisp bright crowns: the tops facing up and toward the light go nearly white
-  lit = max(lit, smoothstep(0.35, 0.9, n.y) * smoothstep(0.4, 1.0, body) * 1.05);
-  vec3 col = mix(uShade, uLit, lit * lit * (3.0 - 2.0 * lit));
-  // undersides pick up green light from the grass below
-  col = mix(col, uBounce, (1.0 - body) * 0.28 * clamp(-n.y + 0.4, 0.0, 1.0));
-  col *= 0.95 + 0.1 * billow;
-  // shade the creases where lumps meet: each lump darkens toward its rim, which carves the cauliflower
-  col *= mix(0.93, 1.0, smoothstep(1.0, 0.6, r));
-  // solid through the body; only the outer rim of each lump is soft
-  float a = smoothstep(1.0, 0.74, r);
-  outColor = vec4(col, a);
-}
-`;
-
-/** Clouds as many soft sphere impostors, sorted far to near once: cheap, and cotton-like. */
 export class Clouds {
-  readonly mesh: Mesh;
-  private readonly material: ShaderMaterial;
-  private readonly geometry: InstancedBufferGeometry;
-  private readonly base = new PlaneGeometry(2, 2);
+  readonly mesh = new Group();
+  readonly shapes: readonly { spec: CloudSpec; lumps: readonly Lump[] }[];
+  private readonly clouds: Baked[];
+  private readonly geometry = new BufferGeometry();
+  private readonly quad = new PlaneGeometry(2, 2);
+  private readonly bakeMaterial: ShaderMaterial;
+  private readonly bakeScene = new Scene();
+  private readonly bakeCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-  constructor(puffs: readonly Puff[], camera: PerspectiveCamera, sun: readonly [number, number, number], offset: { value: Vector3 }) {
-    const cam = camera.position;
-    const sorted = [...puffs].sort((a, b) => Math.hypot(b.x - cam.x, b.y - cam.y, b.z - cam.z) - Math.hypot(a.x - cam.x, a.y - cam.y, a.z - cam.z));
-    const data = new Float32Array(sorted.length * 4);
-    const mass = new Float32Array(sorted.length * 4);
-    const level = new Float32Array(sorted.length);
-    sorted.forEach((p, i) => {
-      data.set([p.x, p.y, p.z, p.r], i * 4);
-      mass.set([p.cx, p.cy, p.cz, p.cr], i * 4);
-      level[i] = p.level;
-    });
-    this.geometry = new InstancedBufferGeometry();
-    this.geometry.setAttribute('position', this.base.getAttribute('position'));
-    this.geometry.setIndex(this.base.getIndex());
-    this.geometry.setAttribute('aPuff', new InstancedBufferAttribute(data, 4));
-    this.geometry.setAttribute('aLevel', new InstancedBufferAttribute(level, 1));
-    this.geometry.setAttribute('aCloud', new InstancedBufferAttribute(mass, 4));
-    this.geometry.instanceCount = sorted.length;
-    void sunInView(sun, camera);
-    this.material = new ShaderMaterial({
+  constructor(specs: readonly CloudSpec[], light: CloudLight, offset: { value: Vector3 }) {
+    this.geometry.setAttribute('position', new Float32BufferAttribute([0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0], 3));
+    this.bakeMaterial = new ShaderMaterial({
       glslVersion: '300 es' as never,
-      vertexShader: VERT,
-      fragmentShader: FRAG,
-      transparent: true,
-      depthWrite: false,
-      // they float well above the grass and nothing in the scene stands between them and the viewer
+      vertexShader: BAKE_VERT,
+      fragmentShader: BAKE_FRAG,
       depthTest: false,
+      depthWrite: false,
       uniforms: {
-        uOffset: offset,
-        uSunView: { value: [-0.45, 0.62, 0.64] },
-        uLit: { value: [1.0, 1.0, 0.985] },
-        uShade: { value: [0.58, 0.64, 0.76] },
-        uBounce: { value: [0.62, 0.72, 0.5] },
+        uLumps: { value: Array.from({ length: MAX_LUMPS }, () => new Vector4()) },
+        uCount: { value: 0 },
+        uBoxMin: { value: new Vector3() },
+        uBoxMax: { value: new Vector3() },
+        uInvViewProj: { value: new Matrix4() },
+        uCamPos: { value: new Vector3() },
+        uRect: { value: new Vector4() },
+        uSun: { value: new Vector3(...light.sun) },
+        uSunColor: { value: new Vector3(...light.sunColor) },
+        uSkyColor: { value: new Vector3(...light.skyColor) },
+        uGroundColor: { value: new Vector3(...light.groundColor) },
+        uSeed: { value: 0 },
+        uDomeC: { value: new Vector3() },
+        uDomeR: { value: new Vector3(1, 1, 1) },
       },
     });
-    this.mesh = new Mesh(this.geometry, this.material);
-    this.mesh.frustumCulled = false;
-    this.mesh.renderOrder = 10;
+    this.bakeScene.add(new Mesh(this.quad, this.bakeMaterial));
+    this.clouds = specs.map((spec) => {
+      const lumps = buildLumps(spec);
+      const box = cloudBox(spec, lumps);
+      const centre = new Vector3((box.min[0] + box.max[0]) / 2, (box.min[1] + box.max[1]) / 2, (box.min[2] + box.max[2]) / 2);
+      const material = new ShaderMaterial({
+        glslVersion: '300 es' as never,
+        vertexShader: DRAW_VERT,
+        fragmentShader: DRAW_FRAG,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
+        // the bake is premultiplied
+        blending: CustomBlending,
+        blendSrc: OneFactor,
+        blendDst: OneMinusSrcAlphaFactor,
+        uniforms: { uImage: { value: null }, uRect: { value: new Vector4() }, uCentre: { value: centre }, uOffset: offset },
+      });
+      const mesh = new Mesh(this.geometry, material);
+      mesh.frustumCulled = false;
+      return { spec, lumps, box, target: null, material, mesh, distance: 0 };
+    });
+    this.shapes = this.clouds.map(({ spec, lumps }) => ({ spec, lumps }));
+  }
+
+  /** Raymarch every cloud from the camera as it now stands. */
+  bake(renderer: WebGLRenderer, camera: PerspectiveCamera, pixelW: number, pixelH: number): void {
+    camera.updateMatrixWorld(true);
+    const viewProj = new Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    const u = this.bakeMaterial.uniforms;
+    u.uInvViewProj.value.copy(viewProj).invert();
+    u.uCamPos.value.copy(camera.position);
+    const previous = renderer.getRenderTarget();
+    const clear = renderer.getClearColor(new Color());
+    const clearAlpha = renderer.getClearAlpha();
+    for (const c of this.clouds) {
+      const rect = projectBox(c.box, viewProj);
+      c.distance = camera.position.distanceTo(c.material.uniforms.uCentre.value);
+      c.material.uniforms.uRect.value.copy(rect);
+      const w = Math.max(8, Math.round(((rect.z - rect.x) / 2) * pixelW));
+      const h = Math.max(8, Math.round(((rect.w - rect.y) / 2) * pixelH));
+      const k = Math.min(1, MAX_BAKE / Math.max(w, h));
+      const tw = Math.round(w * k);
+      const th = Math.round(h * k);
+      if (!c.target || c.target.width !== tw || c.target.height !== th) {
+        c.target?.dispose();
+        c.target = new WebGLRenderTarget(tw, th, { type: HalfFloatType, format: RGBAFormat, minFilter: LinearFilter, magFilter: LinearFilter, depthBuffer: false });
+      }
+      c.lumps.forEach((l, i) => u.uLumps.value[i].set(l.x, l.y, l.z, l.r));
+      u.uCount.value = c.lumps.length;
+      u.uBoxMin.value.set(...c.box.min);
+      u.uBoxMax.value.set(...c.box.max);
+      u.uRect.value.copy(rect);
+      u.uSeed.value = (c.spec.seed % 97) * 0.37;
+      const dome = domeOf(c.spec);
+      u.uDomeC.value.set(...dome.c);
+      u.uDomeR.value.set(...dome.r);
+      renderer.setRenderTarget(c.target);
+      renderer.setClearColor(0x000000, 0);
+      renderer.clear();
+      renderer.render(this.bakeScene, this.bakeCamera);
+      c.material.uniforms.uImage.value = c.target.texture;
+    }
+    renderer.setRenderTarget(previous);
+    renderer.setClearColor(clear, clearAlpha);
+    // far clouds first
+    this.mesh.clear();
+    [...this.clouds].sort((a, b) => b.distance - a.distance).forEach((c, i) => {
+      c.mesh.renderOrder = 10 + i;
+      this.mesh.add(c.mesh);
+    });
   }
 
   dispose(): void {
+    for (const c of this.clouds) {
+      c.target?.dispose();
+      c.material.dispose();
+    }
     this.geometry.dispose();
-    this.base.dispose();
-    this.material.dispose();
+    this.quad.dispose();
+    this.bakeMaterial.dispose();
   }
 }
 
-function sunInView(sun: readonly [number, number, number], camera: PerspectiveCamera): [number, number, number] {
-  const e = camera.matrixWorldInverse.elements;
-  const x = e[0] * sun[0] + e[4] * sun[1] + e[8] * sun[2];
-  const y = e[1] * sun[0] + e[5] * sun[1] + e[9] * sun[2];
-  const z = e[2] * sun[0] + e[6] * sun[1] + e[10] * sun[2];
-  const l = Math.hypot(x, y, z) || 1;
-  return [x / l, y / l, z / l];
+/** The screen rectangle, in NDC, that a world box covers, padded a little. */
+function projectBox(box: { min: [number, number, number]; max: [number, number, number] }, viewProj: Matrix4): Vector4 {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const p = new Vector3();
+  for (let i = 0; i < 8; i++) {
+    p.set(i & 1 ? box.max[0] : box.min[0], i & 2 ? box.max[1] : box.min[1], i & 4 ? box.max[2] : box.min[2]).applyMatrix4(viewProj);
+    x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y);
+  }
+  const px = (x1 - x0) * PAD, py = (y1 - y0) * PAD;
+  return new Vector4(Math.max(-1.2, x0 - px), Math.max(-1.2, y0 - py), Math.min(1.2, x1 + px), Math.min(1.2, y1 + py));
 }

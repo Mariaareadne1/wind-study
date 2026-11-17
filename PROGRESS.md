@@ -32,7 +32,7 @@ Target: `references/meadow_target_reference.png` (the first photograph supplied;
 which renders `?compare&scene=sunlit` at the reference's exact 842×1582 frame. Add `bare` to see the land without grass.
 
 ### Done
-- Clouds, rider and track hidden until the grass is right.
+- Rider and track hidden until the landscape is right (clouds are back, see below).
 - Terrain rebuilt as soft asymmetric waves that sweep diagonally, calm in the foreground (`sunlitHeight`).
 - Baked terrain light (`src/scene/terrainLight.ts`): sky occlusion from the horizon in 12 directions, sun self-shadow,
   and the surface normal. Valleys are dark because of their shape.
@@ -50,13 +50,31 @@ which renders `?compare&scene=sunlit` at the reference's exact 842×1582 frame. 
   effect changes half the picture.
 - Fixed: the per-blade "swept" value had been overwritten by an older random value, which softened every blade.
 
+### Clouds
+- Three cumulus in the photograph's layout (big upper left, medium right, small lower left), each raymarched once into
+  its own half-float image (`src/scene/Clouds.ts`) and drawn as a card that slides with the slow drift. The frame pays
+  nothing for the volume. A bake costs about 0.18 s at 2880×1800, so rebakes on resize wait out a drag (180 ms).
+- Shape (`src/scene/cloudShape.ts`): a flat-based half-ellipsoid core with up to 64 cauliflower heads on its surface,
+  smooth-unioned, eroded by warped billow noise, and cut flat at the condensation level.
+- Light: Beer-Lambert toward the light with three scattering octaves, a mild forward/back phase, blue sky from above and
+  grey light from the land below. The forms are modelled by a key from the upper right (`cloudKey`). Shadows are cast
+  by a higher light (`cloudSun`) so each falls close under its cloud, as in the photograph. The land keeps its own sun.
+- Shadows are baked on the CPU through the same field and feed the existing flow texture, so grass and ground darken
+  under them.
+- Shadow bake is about 0.5 s on the main thread at startup (228×156 texels). The clouds are rebaked after a lost
+  graphics context is restored.
+- Tests: 63 unit (3 new for cloud shape and shadows), 51 e2e (the Sunlit test now checks three clouds render white).
+- 60 fps held at 2880×1800 with clouds on (16.7 ms median, vsync-limited, load about 14).
+- Comparison: `docs/media/sunlit-rebuild/30-clouds-vs.jpg`, `30-cloud-close-vs.jpg`.
+- Still open: the big cloud's shadow falls on a dark wave front, so it barely reads, and the target's shadows are
+  darker and crisper than ours.
+
 ### Visual issues still open
 - Up close our blades are crisper and more brushed than the target's soft, slightly blurred grass.
 - Frame cost is about 16.5 ms median at 2880×1800 (450k strands, measured at load about 8). Density is now 1.1
   (396k strands); its timing was taken at load 38 and isn't meaningful.
 
 ### Next, in order
-1. Final grass pass (length variation on wave crests, tuft clumping).
-2. Clouds: photographic cumulus (irregular silhouettes, soft volume, grey-blue undersides).
-3. Rider: small, realistically proportioned.
-4. Cursor breeze: a soft local wind that follows the pointer.
+1. Rider: small, realistically proportioned.
+2. Cursor breeze: a soft local wind that follows the pointer.
+3. Optional: a final grass pass (softer blades up close).

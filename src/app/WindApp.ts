@@ -7,7 +7,8 @@ import { FADE, type InkLine, StrokeLine } from '../interaction/StrokeLine';
 import { PointerSmoother } from '../interaction/stroke';
 import { placeCamera, screenRays } from '../scene/framing';
 import { MEADOW, type SceneProfile } from '../scene/profiles';
-import { bakeCloudShadow, buildPuffs, Clouds, makeShadowTexture } from '../scene/Clouds';
+import { Clouds } from '../scene/Clouds';
+import { bakeCloudShadow, makeShadowTexture } from '../scene/cloudShape';
 import { makeFlow, makeSwirl } from '../scene/swirl';
 import { bakeTerrainLight, terrainLightTexture } from '../scene/terrainLight';
 import { Cyclist } from '../scene/Cyclist';
@@ -72,6 +73,8 @@ export class WindApp {
   private clouds: Clouds | null = null;
   private cyclist: Cyclist | null = null;
   private shadowTex: DataTexture | null = null;
+  private cloudsBaked = false;
+  private pendingBake = 0;
   private readonly cloudOffset = { value: new Vector3() };
   private swirlFn: ReturnType<typeof makeSwirl> | null = null;
   private readonly timeUniform = { value: 0 };
@@ -202,13 +205,25 @@ export class WindApp {
   /** Clouds and the shadows they cast, baked once along the sun. */
   private buildClouds(): void {
     const specs = this.profile.clouds;
-    if (!specs?.length) return;
-    const puffs = specs.flatMap(buildPuffs);
-    const res = [304, 208] as const;
-    this.shadowTex = makeShadowTexture(bakeCloudShadow(puffs, this.terrain, this.profile.sun, FIELD, res[0], res[1]), res[0], res[1]);
+    const light = this.profile.realistic;
+    if (!specs?.length || !light) return;
+    const sun = this.profile.cloudSun ?? this.profile.sun;
+    this.clouds = new Clouds(specs, { sun: this.profile.cloudKey ?? sun, sunColor: light.sunColor, skyColor: light.skyColor, groundColor: light.groundColor ?? [0.3, 0.36, 0.16] }, this.cloudOffset);
+    // the grass reads shadows through the 0.42-unit flow grid, so about a third of a unit here is plenty
+    const res = [228, 156] as const;
+    this.shadowTex = makeShadowTexture(bakeCloudShadow(this.clouds.shapes, this.terrain, sun, FIELD, res[0], res[1]), res[0], res[1]);
     this.windTex.setShadowMap(this.shadowTex);
-    this.clouds = new Clouds(puffs, this.camera, this.profile.sun, this.cloudOffset);
     this.scene.add(this.clouds.mesh);
+  }
+
+  /** How many clouds the scene floats: tests and QA read it. */
+  get cloudCount(): number {
+    return this.clouds?.shapes.length ?? 0;
+  }
+
+  /** Clouds are raymarched once per camera: again whenever the frame changes shape. */
+  private bakeClouds(): void {
+    this.clouds?.bake(this.renderer, this.camera, Math.round(this.cssW * this.dpr), Math.round(this.cssH * this.dpr));
   }
 
   private buildCyclist(): void {
@@ -247,6 +262,17 @@ export class WindApp {
     this.applySize();
     placeCamera(this.camera, this.cssW / this.cssH, this.profile.framing);
     this.uniforms.uCamPos.value.copy(this.camera.position);
+    // the bake takes a good part of a second at full size: the first is immediate, later ones wait out a drag
+    if (!this.cloudsBaked) {
+      this.bakeClouds();
+      this.cloudsBaked = true;
+    } else if (this.clouds) {
+      clearTimeout(this.pendingBake);
+      this.pendingBake = window.setTimeout(() => {
+        this.bakeClouds();
+        if (!this.running && !this.disposed) this.renderFrame();
+      }, 180);
+    }
     if (this.builtAspect && Math.abs(this.cssW / this.cssH - this.builtAspect) / this.builtAspect > 0.05) {
       clearTimeout(this.pendingRebuild);
       this.pendingRebuild = window.setTimeout(() => this.rebuildGrass(), 180);
@@ -608,6 +634,8 @@ export class WindApp {
     this.contextLost = false;
     this.store.set({ error: null });
     this.lastT = performance.now();
+    // the cloud images lived only on the lost GPU
+    this.bakeClouds();
   };
 
   dispose(): void {
@@ -625,6 +653,7 @@ export class WindApp {
     c.removeEventListener('webglcontextlost', this.onContextLost);
     c.removeEventListener('webglcontextrestored', this.onContextRestored);
     this.grass.dispose();
+    clearTimeout(this.pendingBake);
     this.clouds?.dispose();
     this.cyclist?.dispose();
     this.shadowTex?.dispose();

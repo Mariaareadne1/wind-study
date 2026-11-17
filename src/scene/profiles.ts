@@ -1,5 +1,5 @@
 import { framingFor, hillsFramingFor, sunlitFramingFor, type Framing } from './framing';
-import type { CloudSpec } from './Clouds';
+import type { CloudSpec } from './cloudShape';
 import { HILL_PATCHES, PATCHES, SUN, SUNLIT_PATCHES, type FieldPatch } from './paint';
 import { hillsClimb, hillsHeight, meadowHeight, sunlitClimb, sunlitHeight, type HeightFn } from './terrain';
 
@@ -57,12 +57,18 @@ export interface SceneProfile {
   /** Photographic light instead of the painted look: fibre lighting, cast cloud shadows, a clean finish. */
   realistic?: {
     sunColor: readonly [number, number, number];
+    /** Light thrown up off the sunlit land onto cloud undersides. */
+    groundColor?: readonly [number, number, number];
     skyColor: readonly [number, number, number];
     finish: { lift: number; grain: number; saturation: number; soften: number; exposure?: number };
   };
   /** Long grass combed into streams. */
   long?: { length: number; width: number; troughs?: number; silver?: number };
   clouds?: readonly CloudSpec[];
+  /** Light the clouds are shaded and cast their shadows by, when it should differ from the land's sun. */
+  cloudSun?: readonly [number, number, number];
+  /** Light the clouds' own forms are modelled by: a little in front, so their billows read. */
+  cloudKey?: readonly [number, number, number];
   flowers?: { flowers: number; seedHeads: number };
   /** The land's general slope without its waves, so wave fronts can be told from the climb. */
   baseline?: (z: number) => number;
@@ -132,12 +138,21 @@ export const SUNLIT: SceneProfile = {
     // linear light, in the units the filmic tonemap expects
     sunColor: [2.6, 2.35, 1.8],
     skyColor: [0.4, 0.54, 0.7],
+    groundColor: [0.26, 0.3, 0.24],
     finish: { lift: 0, grain: 0.15, saturation: 0.92, soften: 0, exposure: 1 },
   },
   long: { length: 6.5, width: 0.48, troughs: 0.86, silver: 0.12 },
-  clouds: [],
+  // three low cumulus in the photograph's layout, read in a tall frame: big upper left, medium right, small lower left
+  clouds: [
+    { x: -2.6, y: 8.7, z: -0.8, width: 12.8, depth: 4.6, height: 4.8, seed: 11 },
+    { x: 3.6, y: 5.7, z: 5.6, width: 7.6, depth: 3.4, height: 3.6, seed: 23 },
+    { x: -3.5, y: 3.8, z: 10, width: 4.3, depth: 2.2, height: 2.3, seed: 37 },
+  ],
   flowers: { flowers: 0, seedHeads: 0 },
   motion: { breeze: 0.4, flutter: 0.35 },
+  // higher than the land's sun, so each cloud's shadow falls close under it, as in the photograph
+  cloudSun: normalize([0.22, 0.9, -0.36]),
+  cloudKey: normalize([0.55, 0.75, -0.25]),
   baseline: sunlitClimb,
 };
 

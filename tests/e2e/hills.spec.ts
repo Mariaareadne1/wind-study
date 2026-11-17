@@ -164,7 +164,7 @@ test.describe('the hills version', () => {
 });
 
 test.describe('the sunlit version', () => {
-  test('landscape alone: terrain-lit grass, darker valleys from shape, and a drawn gust moves it', async ({ page }) => {
+  test('terrain-lit grass, darker valleys from shape, raymarched clouds, and a drawn gust moves it', async ({ page }) => {
     await open(page, 'compare&dpr=1&tufts=20000&scene=sunlit');
     await snap(page, 'rest', 30);
     const r = await page.evaluate(() => {
@@ -182,9 +182,18 @@ test.describe('the sunlit version', () => {
         }
         rows.push(l / (c.width * 0.1));
       }
-      return { id: a.profile.id, clouds: orders.includes(10), rider: orders.includes(6), lit: a.uniforms.uTerrainLight.value !== null, spread: Math.max(...rows) - Math.min(...rows) };
+      // the big cloud's crown is near-white against the grass
+      let white = 0;
+      for (let y = Math.floor(c.height * 0.2); y < c.height * 0.4; y += 4) {
+        for (let x = Math.floor(c.width * 0.1); x < c.width * 0.7; x += 4) {
+          const i = (x + y * c.width) * 4;
+          if (d[i] > 215 && d[i + 1] > 215 && d[i + 2] > 205) white++;
+        }
+      }
+      return { id: a.profile.id, clouds: a.cloudCount, white, rider: orders.includes(6), lit: a.uniforms.uTerrainLight.value !== null, spread: Math.max(...rows) - Math.min(...rows) };
     });
-    expect(r).toMatchObject({ id: 'sunlit', clouds: false, rider: false, lit: true });
+    expect(r).toMatchObject({ id: 'sunlit', clouds: 3, rider: false, lit: true });
+    expect(r.white).toBeGreaterThan(200);
     expect(r.spread).toBeGreaterThan(35);
     await page.evaluate(() => window.__wind!.app.play('heroCurve'));
     await snap(page, 'gust', 80);
