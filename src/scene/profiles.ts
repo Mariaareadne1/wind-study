@@ -1,9 +1,10 @@
+import { portfolioClimb, portfolioFramingFor, portfolioHeight } from './portfolio';
 import { framingFor, hillsFramingFor, sunlitFramingFor, type Framing } from './framing';
 import type { CloudSpec } from './cloudShape';
 import { HILL_PATCHES, PATCHES, SUN, SUNLIT_PATCHES, type FieldPatch } from './paint';
 import { hillsClimb, hillsHeight, meadowHeight, sunlitClimb, sunlitHeight, type HeightFn } from './terrain';
 
-export type SceneId = 'meadow' | 'hills' | 'sunlit';
+export type SceneId = 'meadow' | 'hills' | 'sunlit' | 'portfolio';
 
 /** Everything that differs between versions. Wind, grass, interface and tests are shared. */
 export interface SceneProfile {
@@ -63,7 +64,9 @@ export interface SceneProfile {
     finish: { lift: number; grain: number; saturation: number; soften: number; exposure?: number };
   };
   /** Long grass combed into streams. */
-  long?: { length: number; width: number; troughs?: number; silver?: number };
+  long?: { length: number; width: number; troughs?: number; silver?: number; combed?: boolean };
+  /** Light reaching the soil through the grass, 0..1 (1 when unset): deep grass shades the ground between its locks. */
+  canopy?: number;
   clouds?: readonly CloudSpec[];
   /** Light the clouds are shaded and cast their shadows by, when it should differ from the land's sun. */
   cloudSun?: readonly [number, number, number];
@@ -156,6 +159,27 @@ export const SUNLIT: SceneProfile = {
   baseline: sunlitClimb,
 };
 
+/**
+ * The portfolio hero: the Sunlit engine framed wide, on bigger swells, with three clouds placed
+ * to balance an introduction panel on the left. See src/scene/portfolio.ts.
+ */
+export const PORTFOLIO: SceneProfile = {
+  ...SUNLIT,
+  id: 'portfolio',
+  height: portfolioHeight,
+  framing: portfolioFramingFor,
+  baseline: portfolioClimb,
+  // the whole frame is near land: only the faintest air
+  haze: { color: [0.5, 0.6, 0.46], near: 50, far: 120, amount: 0.12 },
+  // finer and denser than Sunlit: the reference reads as silk from a distance
+  grass: { ...SUNLIT.grass, sizeScale: 0.95, density: 1.4 },
+  long: { ...SUNLIT.long!, length: 9, width: 0.45, combed: true },
+  canopy: 0.4,
+  // olive rather than lime: the reference's greens sit only a little above their reds, with real blue in them
+  realistic: { ...SUNLIT.realistic!, sunColor: [2.9, 2.55, 1.75], finish: { ...SUNLIT.realistic!.finish, saturation: 0.76, exposure: 1.1 } },
+  clouds: [],
+};
+
 export function profileFor(id: string | null): SceneProfile {
-  return id === 'hills' ? HILLS : id === 'sunlit' ? SUNLIT : MEADOW;
+  return id === 'hills' ? HILLS : id === 'sunlit' ? SUNLIT : id === 'portfolio' ? PORTFOLIO : MEADOW;
 }

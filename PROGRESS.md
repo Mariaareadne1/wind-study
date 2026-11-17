@@ -85,3 +85,63 @@ which renders `?compare&scene=sunlit` at the reference's exact 842×1582 frame. 
 1. Rider: small, realistically proportioned.
 2. Cursor breeze: a soft local wind that follows the pointer.
 3. Optional: a final grass pass (softer blades up close).
+
+## Portfolio hero (`?scene=portfolio`), branch `sunlit` — started 2026-11-16
+
+Target: `design/reference/portfolio_hero_target.png` (1914 × 1048 as supplied; the brief said 1672 × 941, same ~16:9
+shape). Compare with `scripts/hero.sh name [extra query]`: renders `?compare&scene=portfolio` at 1914 × 1048, DPR 1
+(a real desktop hero's CSS size, so the grass budget matches), and stacks it under the target
+(`artifacts/vs/name-st.jpg`). `node scripts/regions.mjs render.png` prints mean colour per region against the target.
+Add `bare` to see the land alone.
+
+### Current milestone
+2 of 8, composition and terrain, with early grass work.
+
+### Visual breakdown of the target
+- **Landscape:** no sky. Grass-covered swells fill the frame, with crests rising gently to the right in long S-curves.
+  The upper left is dark folded hills. A dark trough runs under the big cloud, rising right. A lit crest crosses the
+  middle. A second dark trough sits under the lower clouds. The foreground is a broad, warm, lighter slope (bottom
+  right), with a few tiny white flowers at the bottom left.
+- **Grass:** long, silky strands (100–200 px at 1914 wide, 2–3 px thick) gathered into flowing locks, with visible
+  gaps of shade between them and light catching the tips. The direction follows the swells. Colour is olive: means
+  around (85,105,60) to (118,134,55) sRGB, with green only 15–25% over red and real blue. Never lime.
+- **Clouds:** three, low over the land. A large one in the upper middle (x 38–72%, y 9–32%). A broad, luminous one in
+  the middle right (x 60–96%, y 34–62%). A small one lower middle (x 42–56%, y 58–70%). Soft feathered rims and
+  bright tops. Shadows fall below and a little left of each.
+- **Panel:** thick, smoky, green-tinted glass at x ≈ 6–35%, y ≈ 24–71%, corner radius about 50 px. It has a thin
+  bright rim, visible refraction at the edges, and sharp cream text.
+- **Camera:** fixed, raised about 35°, looking down onto the swells. The land feels large.
+
+### Rendering strategy: approach A (the existing 3D scene, improved)
+- A first render of the Sunlit engine in the wide frame already reached the right family: diagonal swells, deep
+  troughs, a lit foreground. It has real 3D wind, cloud shadows that agree with the clouds, and no image to distort.
+- Approach B (a hybrid over a painted plate) would need a clean, panel-free plate of the target. I can't produce a
+  faithful one, and faking it (cloning or blurring over the panel) is ruled out. So it stays a fallback only.
+
+### Done so far
+- `src/scene/portfolio.ts`: bigger, fewer swells than Sunlit, with crests rising right and long S-bends; a fixed
+  raised camera (35° on desktop, steeper for tall windows).
+- `PORTFOLIO` profile in `src/scene/profiles.ts`, reusing the Sunlit engine.
+- Combed grass (`long.combed`): every blade lies over along the land (`makeFlow(..., combed)`), gathered into locks
+  that vary in lift, length and tone (`tufts.ts`, drawn only when combed, so other scenes are unchanged).
+- The ground under thick grass is shaded (`canopy`), so the gaps between locks read as depth.
+- Olive grade (saturation 0.76, warmer sun, exposure 1.1).
+- Meadow, Hills and Sunlit unchanged: 63 unit tests pass, and the 20 snapshot and scene browser tests pass.
+
+### Reference audit (all MIT)
+- **glass-studies (own, MIT):** the final shader already refracts a texture of what is drawn beneath it
+  (`src/glass/shaders.ts`): rounded-rect SDF, squircle bevel profile, refraction at IOR 1.52, dispersion, Fresnel rim
+  and specular. Port it to sample the compositor's target. Do not use `.research/glass-gl` (AGPL).
+- **zephyr (MIT, rether):** translucency, sheen and tip glint block; Voronoi dome clumping.
+- **threejs-field-grass (MIT, Kissinger):** its wake field with ease-in and smootherstep recovery (about 0.9 s). It has
+  no cursor wake of its own; the pointer has to be projected onto the ground.
+- **liquid-glass-react (MIT):** its README says the shader was reverse-engineered from Apple's. Reuse the ideas
+  (lens curve, mip blur) without copying its code.
+- **liquidGL (MIT):** uses a DOM rasteriser for the backdrop. Not needed, since our backdrop is already a GPU texture.
+- **volumetric-clouds (MIT):** weaker lighting than ours. Only its flat-bottom/tall-top idea is relevant.
+
+### Remaining visual differences (largest first)
+1. No clouds yet in this scene.
+2. The grass is less voluminous and less curved than the target's locks, and its highlights are weaker.
+3. A thin dark line on one crest at the right (a back face seen edge-on).
+4. No glass panel or text yet.

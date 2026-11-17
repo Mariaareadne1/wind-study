@@ -79,7 +79,12 @@ export function makeSwirl(seed: number): (x: number, z: number) => Lay {
  * into one prevailing breeze where the ground is flat, with only slow, broad
  * wandering on top. Neighbouring blades always agree; nothing curls tightly.
  */
-export function makeFlow(seed: number, height: (x: number, z: number) => number, baseline: (z: number) => number = () => 0): (x: number, z: number) => Lay {
+export function makeFlow(
+  seed: number,
+  height: (x: number, z: number) => number,
+  baseline: (z: number) => number = () => 0,
+  combed = false,
+): (x: number, z: number) => Lay {
   const wander: Noise2 = makeNoise(seed + 511);
   const lanes: Noise2 = makeNoise(seed + 512);
   const tilt: Noise2 = makeNoise(seed + 513);
@@ -119,6 +124,12 @@ export function makeFlow(seed: number, height: (x: number, z: number) => number,
     const across = -x * fz + z * fx;
     const lane = fbm(lanes, along * 0.06, across * 0.3, 2);
     // long swept grass on the steep fronts shows faint pale lanes; elsewhere the surface is even
+    if (combed) {
+      // Seen from higher up, every blade lies over along the land, so the whole surface reads as
+      // combed silk: one length, gentle lanes of light, and only a little more lift in the hollows.
+      const lean = 0.95 + 0.35 * fbm(tilt, x * 0.08, z * 0.08, 2) + 0.35 * follow;
+      return { x: fx, z: fz, lean, streak: 0.78 + 0.42 * smoothstep(-0.4, 0.4, lane), length: 1 };
+    }
     const streak = 0.84 + (0.32 + 0.2 * face) * smoothstep(-0.35, 0.35, lane);
     // From this low camera, upright blades are seen side-on at full length and lying ones are
     // foreshortened, so lying over is what keeps the surface fine. Steep fronts lie over a little more.

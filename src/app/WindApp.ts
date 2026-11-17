@@ -158,6 +158,8 @@ export class WindApp {
     this.grass = new GrassField(this.uniforms, !!look, !!look?.finish.exposure);
     const ground = buildGround(this.terrain, this.painting, this.uniforms.uFlow, this.uniforms.uFieldRect, this.uniforms, !!look, this.uniforms);
     this.groundDispose = ground.dispose;
+    const groundMat = ground.mesh.material as { uniforms?: Record<string, { value: unknown }> };
+    if (groundMat.uniforms?.uCanopy) groundMat.uniforms.uCanopy.value = this.profile.canopy ?? 1;
     this.flowers = new Flowers(this.uniforms);
     this.scene.add(ground.mesh, this.grass.mesh, this.flowers.mesh);
     this.buildClouds();
@@ -198,7 +200,7 @@ export class WindApp {
 
   private get swirl(): ReturnType<typeof makeSwirl> {
     // linear-light scenes comb their grass along the land; the earlier look used painted eddies
-    this.swirlFn ??= this.profile.realistic?.finish.exposure ? makeFlow(this.seed, (x, z) => this.terrain.height(x, z), this.profile.baseline) : makeSwirl(this.seed);
+    this.swirlFn ??= this.profile.realistic?.finish.exposure ? makeFlow(this.seed, (x, z) => this.terrain.height(x, z), this.profile.baseline, !!this.profile.long?.combed) : makeSwirl(this.seed);
     return this.swirlFn;
   }
 

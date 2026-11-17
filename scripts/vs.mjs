@@ -7,11 +7,12 @@ import { writeFileSync } from 'node:fs';
 import ffmpeg from 'ffmpeg-static';
 const [prefix = 'artifacts/vs/current', steps = '600', extra = ''] = process.argv.slice(2);
 const TARGET = process.env.TARGET ?? 'references/meadow_target_reference.png';
-const W = 421, H = 791, DPR = 2; // the reference is 842 x 1582
+// the Sunlit reference is 842 x 1582; the portfolio hero's is 1914 x 1048 (W=957 H=524)
+const W = +(process.env.W ?? 421), H = +(process.env.H ?? 791), DPR = +(process.env.DPR ?? 2);
 const b = await chromium.launch({ args: ['--use-angle=metal', '--enable-gpu'] });
 const p = await b.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: DPR });
 const errs = []; p.on('pageerror', (e) => errs.push(e.message)); p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
-await p.goto(`${process.env.URL ?? 'http://localhost:5428/'}?compare&scene=sunlit&${extra}`);
+await p.goto(`${process.env.URL ?? 'http://localhost:5428/'}?compare&scene=${process.env.SCENE ?? 'sunlit'}&${extra}`);
 await p.waitForFunction(() => window.__wind && !window.__wind.store.get().loading, null, { timeout: 90000 });
 const data = await p.evaluate((n) => new Promise((res) => { const w = window.__wind; w.app.stepFrames(n); w.app.onceAfterFrame(() => res(w.app.canvas.toDataURL('image/png'))); }), +steps);
 writeFileSync(`${prefix}.png`, Buffer.from(data.split(',')[1], 'base64'));

@@ -47,6 +47,8 @@ export interface LongGrass {
   troughs?: number;
   /** How far lane crests move toward a pale highlight colour (0: not at all). */
   silver?: number;
+  /** Every blade lies over along the land, gathered into locks that differ a little in lift, length and tone. */
+  combed?: boolean;
 }
 
 /** Soft mounds of grass a little over a world unit across: the mid scale of the fluff. */
@@ -178,6 +180,9 @@ export function buildGrass(terrain: Terrain, paint: Painting, rays: ScreenRays, 
     const lay = long ? long.lay(cx, cz) : null;
     // linear-light grass (the photographic scene) records how swept each blade is, for its sky sheen
     const clumped = !!long && long.troughs !== undefined;
+    // combed grass gathers into locks: each tuft lifts, reaches and catches light a little differently,
+    // which is what gives the surface its volume (drawn only when combed, so other scenes are unchanged)
+    const lock = long?.combed ? { lean: mix(0.7, 1.35, rng()), length: mix(0.8, 1.25, rng()), tone: 1 + (rng() - 0.5) * 0.36 } : null;
 
 
     for (let k = 0; k < STRANDS_PER_TUFT; k++) {
@@ -210,11 +215,13 @@ export function buildGrass(terrain: Terrain, paint: Painting, rays: ScreenRays, 
         // short grass by the track stands more upright; long grass lies down in the stream
         const lying = mix(0.3, 1, smoothstep(0.2, 0.75, patchTall));
         const lean = (under ? 0.55 : 1) * lay.lean * lying * (0.9 + 0.2 * ((k * 0.618) % 1));
+        const lockLean = lock ? lock.lean : 1;
+        const lockLength = lock ? lock.length : 1;
         // short fields stay short: length falls away faster than the patch height
-        shape[s * 4] = (h / Math.max(0.78 + 0.34 * crown, 0.01)) * long.length * (lay.length ?? 1) * (under ? 0.7 : 1) * Math.min(1, patchTall);
+        shape[s * 4] = (h / Math.max(0.78 + 0.34 * crown, 0.01)) * long.length * (lay.length ?? 1) * lockLength * (under ? 0.7 : 1) * Math.min(1, patchTall);
         shape[s * 4 + 1] *= long.width * mix(0.6, 1, smoothstep(0.2, 0.75, patchTall)) * (clumped ? 1 + 0.12 * smoothstep(1, 1.6, lay.length ?? 1) : 1);
-        shape[s * 4 + 2] = lx * lean + ax * fan * 0.15;
-        shape[s * 4 + 3] = lz * lean + az * fan * 0.15;
+        shape[s * 4 + 2] = lx * lean * lockLean + ax * fan * 0.15;
+        shape[s * 4 + 3] = lz * lean * lockLean + az * fan * 0.15;
       }
 
       // rim strands sit in the tuft's own shade; centre strands catch the light
@@ -229,7 +236,7 @@ export function buildGrass(terrain: Terrain, paint: Painting, rays: ScreenRays, 
         const crest = clamp((lay.streak - 0.5) / 0.85 + (rng() - 0.5) * 0.12, 0, 1);
         // from the field's own pigment: in long grass, neighbouring blades vary only a little
         // in linear-light grass each blade keeps a natural spread of brightness; in the earlier look, little
-        const vary = 1 + (tone - 1) * (long?.troughs !== undefined ? 1.5 : 0.35);
+        const vary = (1 + (tone - 1) * (long?.troughs !== undefined ? 1.5 : 0.35)) * (lock ? lock.tone : 1);
         const pr = (pigment2[0] / 255) * vary;
         const pg = (pigment2[1] / 255) * vary;
         const pb = (pigment2[2] / 255) * vary;

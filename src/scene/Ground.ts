@@ -28,7 +28,7 @@ export function buildGround(
   const mat = new ShaderMaterial({
     glslVersion: '300 es' as never,
     defines: realistic ? { REALISTIC: 1 } : {},
-    uniforms: { uPaint: { value: tex }, uFlow: flow, uFieldRect: fieldRect, uHaze: haze.uHaze, uHazeRange: haze.uHazeRange, ...(light ?? {}) },
+    uniforms: { uPaint: { value: tex }, uFlow: flow, uFieldRect: fieldRect, uHaze: haze.uHaze, uHazeRange: haze.uHazeRange, uCanopy: { value: 1 }, ...(light ?? {}) },
     vertexShader: /* glsl */ `
       out vec2 vXZ;
       out float vDist;
@@ -49,6 +49,7 @@ export function buildGround(
       uniform vec3 uSun3;
       uniform vec3 uSunColor;
       uniform vec3 uSkyColor;
+      uniform float uCanopy; // light reaching the soil through the grass: 1 bare, lower under thick grass
 #endif
       uniform sampler2D uFlow;
       uniform vec4 uFieldRect;
@@ -69,7 +70,7 @@ export function buildGround(
         float ndl = max(dot(n, uSun3), 0.0);
         // a cloud overhead also hides part of the sky
         vec3 lit = uSunColor * ndl * tl.g * (1.0 - clouds) + uSkyColor * tl.r * (1.0 - 0.45 * clouds);
-        outColor = vec4(applyHaze(albedo * lit, vDist, uHaze, uHazeRange), 1.0);
+        outColor = vec4(applyHaze(albedo * lit * uCanopy, vDist, uHaze, uHazeRange), 1.0);
         return;
 #endif
         c = c * 0.62 + vec3(0.02, 0.05, 0.05);
