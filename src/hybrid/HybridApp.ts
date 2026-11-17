@@ -114,7 +114,7 @@ export class HybridApp {
     this.compositor.setFinish({ lift: 0, grain: 0, saturation: 1, soften: 0 });
     this.compositor.setVignette(0);
     // clear, dark, smoky glass with a soft bevel and only a light frost, after the reference
-    this.compositor.setGlassLook([9, 0.22, 0.7, 0.06]);
+    this.compositor.setGlassLook([14, 0.32, 0.6, 0.13]);
     this.material = new RawShaderMaterial({
       glslVersion: GLSL3,
       vertexShader: PLATE_VERT,

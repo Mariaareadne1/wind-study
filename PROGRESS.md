@@ -258,3 +258,51 @@ the approved picture and animate only its fine grass detail. The procedural hero
 - Composition against the approved image: `docs/media/hybrid/m2-still-vs-approved.jpg`.
 - Visible differences: the plate is a little brighter and more saturated than the approved image, and our glass is
   darker and clearer than the reference's lighter, frosted panel.
+
+### Milestone 3: one-patch wind proof (the gate)
+- Patch: 300 × 200 plate px around (1150, 780), bright foreground grass away from the clouds and the glass.
+  `node scripts/hybrid-patch.mjs prefix drag|hover` steps the sim by hand and saves crops before, during, and 0.6,
+  1.6 and 3.1 s after, plus a 4× difference map.
+- Drag: mean change 8.55 inside the patch, 0 over the clouds, 0.03 over the far hills. Hover: 5.17 / 0 / 0.03.
+  Grass bend rises from the ambient 0.051 to a peak of 0.12 about half a second after the stroke (the gust's air
+  arriving), and is back to 0.067 by 3 s. No gusts are left.
+- Evidence: `docs/media/hybrid/m3-patch-strip.png` (before → settled, native pixels), `m3-patch-diff.png`,
+  `m3-patch-zoom.mp4` (2× zoom, real time, hover then drag), `m3-hero-interaction.mp4` (full frame).
+- Bug found and fixed on the way: the warp sat in a per-pixel branch, and an implicit-derivative `texture()` inside
+  it picked wrong mip levels where pixels disagreed. That drew thin dashed rings along the mask's soft edges
+  (plainly visible on a phone) and noise on the top rows. Now every sample uses an explicit level, with no branch.
+  The render at rest then matches zero wind exactly.
+- **Honest read:** it passes the gate's measurable tests. Movement is local, it settles, it never tears, and clouds
+  and ridges stay still. Visually the fine detail slides and shimmers coherently along the stroke; it reads as wind
+  passing over grass, not as a rubbery warp. But it is still a sheet of detail moving, not individual blades bending
+  from a root. The zoomed clip is the thing to judge it by.
+
+### Milestone 4: whole scene and glass
+- The validated technique runs across the whole plate through the authored mask. There is no separate direction
+  field: the plate's own detail already carries the grass's rest direction, and the wind's direction comes from the
+  pointer and the ambient breeze.
+- Glass: the compositor's refraction (shared with the procedural hero), tuned lighter for the approved panel (frost
+  14 px, milky rim 0.32, tint 0.6, haze 0.13): `docs/media/hybrid/m4-panel-vs-approved.jpg`.
+
+### Milestone 5: polish
+- Phone: the crop centres a little right (focus 0.66), keeping the big cloud and much of the second over the grass,
+  with the panel low and wide.
+- Frame time on this Mac: 1672 × 941 at 2× steady 60 fps idle and dragging; phone 390 × 844 steady 60 fps. Ready in
+  about 0.8 s, against 2.6 s for the procedural hero.
+- Tests: `tests/e2e/hybrid.spec.ts`, 7 tests:
+  - the plate at rest, compared with the WebP decoded by the same browser;
+  - a drag is local, never touches clouds or far hills, and settles;
+  - hover versus panel;
+  - panel geometry and glass alignment;
+  - the no-WebGL fallback;
+  - reduced motion;
+  - the phone crop and `touch-action`.
+- Full run: 63 unit, 67 browser, plus the 16 hero and hybrid tests on the production build.
+
+### Remaining visible differences from the approved image
+1. The plate is a separate generation: a little brighter and more saturated, with small differences in grass and
+   cloud detail. It is not an inpainting of the approved image.
+2. The glass body is a touch darker and clearer than the approved panel's lighter, milkier look, and its edge is a
+   clean rounded rectangle without the reference's slight liquid wobble.
+3. Grass motion is detail-only: convincing as a breeze, not as individual blades bending.
+4. Clouds are part of the plate and stay still, as the brief asked.

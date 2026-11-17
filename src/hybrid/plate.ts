@@ -52,8 +52,9 @@ uniform float uShiftPx;   // plate px of detail shift per unit of grass bend
 uniform float uDebug;     // 1: show the mask, 2: show the bend field
 out vec4 outColor;
 
+// explicit levels throughout: implicit-derivative sampling is undefined where neighbouring pixels disagree
 vec3 highpass(vec2 uv) {
-  return texture(uPlate, uv).rgb - textureLod(uPlate, uv, uDetailLod).rgb;
+  return textureLod(uPlate, uv, 0.0).rgb - textureLod(uPlate, uv, uDetailLod).rgb;
 }
 
 void main() {
@@ -61,7 +62,7 @@ void main() {
   vec2 dev = vec2(gl_FragCoord.x, uHeight - gl_FragCoord.y);
   vec2 px = (dev - uFit.xy) / uFit.z;
   vec2 uv = px / uPlateSize;
-  vec3 col = texture(uPlate, uv).rgb;
+  vec3 col = textureLod(uPlate, uv, 0.0).rgb;
   // nothing moves at the plate's own edges, where a shifted sample would fall off the picture
   vec2 inward = min(px, uPlateSize - px);
   float mask = texture(uMask, uv).r * smoothstep(6.0, 28.0, min(inward.x, inward.y));
@@ -71,11 +72,9 @@ void main() {
   // nearer grass (lower in the frame) is larger on screen and moves further
   float near = mix(0.45, 1.0, clamp(uv.y, 0.0, 1.0));
   vec2 shift = bend * uShiftPx * near * mask;
-  if (dot(shift, shift) > 1e-6) {
-    // sampling upwind moves what is seen downwind
-    vec2 from = uv - shift / uPlateSize;
-    col += (highpass(from) - highpass(uv)) * mask;
-  }
+  // sampling upwind moves what is seen downwind; no branch, so every pixel samples alike (zero shift adds zero)
+  vec2 from = uv - shift / uPlateSize;
+  col += (highpass(from) - highpass(uv)) * mask;
   if (uDebug > 0.5 && uDebug < 1.5) col = mix(col * 0.35, vec3(1.0, 0.35, 0.3), 1.0 - mask);
   if (uDebug > 1.5) col = mix(col * 0.5, vec3(0.5 + bend * 0.8, 0.5), 0.8);
   outColor = vec4(clamp(col, 0.0, 1.0), 1.0);
