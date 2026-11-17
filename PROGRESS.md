@@ -195,7 +195,13 @@ Add `bare` to see the land alone.
   through the longer grass.
 - Mean regional luminance gap to the target went from 21.6 to 10.7 (`scripts/regions.mjs`).
 
+### Cloud pass (milestone 4, second round)
+- The woolly, streaked look came from the noise warp stretching the billows, and from the union blending the heads
+  into one mass. Both are now per-scene (`warp`, `blend`). The portfolio uses a light warp (0.25) and a sharp union
+  (18), so each head stays a distinct rounded billow with a grey crease. Sunlit keeps its defaults (0.8, 10).
+
 ### Remaining visual differences (largest first)
-1. Clouds: woolly and a little boxy beside the target's crisp cauliflower heads and wispy tails.
+1. Clouds: the target's tails are wispier and its undersides flatter and greyer; the middle-right cloud's right end is
+   still a little boxy.
 2. The target's glass has a slightly organic, liquid edge with bright blobs; ours is a clean rounded rectangle.
 3. The small white wildflowers at the lower left are not there.

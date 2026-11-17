@@ -47,6 +47,10 @@ export interface CloudStyle {
   billows?: number;
   /** Multiplies the sky and ground fill: lower keeps grey in the creases. */
   ambient?: number;
+  /** Sharpness of the union between heads: higher keeps each billow distinct (the shadow bake keeps 10). */
+  blend?: number;
+  /** How far the slow noise warp drags the billows; high values streak them. */
+  warp?: number;
 }
 
 /** Longest side of one cloud's baked image, in pixels: they are soft, so this is plenty. */
@@ -94,7 +98,6 @@ float billow(vec3 p) {
   for (int i = 0; i < 5; i++) { s += a * (1.0 - abs(noise3(p) * 2.0 - 1.0)); p = p * 2.07 + vec3(3.1, 1.7, 5.3); a *= 0.55; }
   return s / 1.0;
 }
-const float BLEND = 10.0;
 const float SUN_GAIN = 0.7;
 const float AMB_GAIN = 0.42;
 uniform float uGain;
@@ -103,17 +106,19 @@ uniform float uFray;
 uniform float uNoiseScale;
 uniform float uTaper;
 uniform float uAmbient;
+uniform float uBlend;
+uniform float uWarp;
 float shape(vec3 p) {
   // a smooth union, so the masses merge into one body instead of reading as balls
   vec3 dd = p - uDomeC;
   float narrow = 1.0 - uTaper * clamp(dd.y / uDomeR.y, 0.0, 1.0);
-  float sum = exp(BLEND * (1.0 - length(dd / (uDomeR * vec3(narrow, 1.0, narrow)))));
+  float sum = exp(uBlend * (1.0 - length(dd / (uDomeR * vec3(narrow, 1.0, narrow)))));
   for (int i = 0; i < ${MAX_LUMPS}; i++) {
     if (i >= uCount) break;
     vec4 l = uLumps[i];
-    sum += exp(BLEND * (1.0 - length(p - l.xyz) / l.w));
+    sum += exp(uBlend * (1.0 - length(p - l.xyz) / l.w));
   }
-  float s = max(log(max(sum, 1e-6)) / BLEND, 0.0);
+  float s = max(log(max(sum, 1e-6)) / uBlend, 0.0);
   float b = smoothstep(uBoxMin.y, uBoxMin.y + 0.35, p.y);
   return s * b;
 }
@@ -122,7 +127,7 @@ float density(vec3 p, bool fine) {
   if (s <= 0.0) return 0.0;
   vec3 q = p * uNoiseScale + uSeed;
   // a slow warp, so billows sprawl and lean instead of sitting on a grid of bumps
-  q += vec3(noise3(p * 0.35 + 7.0), noise3(p * 0.35 + 19.0), noise3(p * 0.35 + 31.0)) * 1.6 - 0.8;
+  q += vec3(noise3(p * 0.35 + 7.0), noise3(p * 0.35 + 19.0), noise3(p * 0.35 + 31.0)) * (2.0 * uWarp) - uWarp;
   // erode the masses, harder near their rim and less on the flat base
   float hf = clamp((p.y - uBoxMin.y) / (uBoxMax.y - uBoxMin.y), 0.0, 1.0);
   // billows bite into the upper surface; the flat base is cut cleaner, and wispier
@@ -265,6 +270,8 @@ export class Clouds {
         uNoiseScale: { value: 1.25 },
         uTaper: { value: 0.3 },
         uAmbient: { value: style.ambient ?? 1 },
+        uBlend: { value: style.blend ?? 10 },
+        uWarp: { value: style.warp ?? 0.8 },
         uDomeC: { value: new Vector3() },
         uDomeR: { value: new Vector3(1, 1, 1) },
       },

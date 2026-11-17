@@ -185,7 +185,7 @@ export const PORTFOLIO: SceneProfile = {
   // softer and less bright than Sunlit's: feathered rims, and whites that keep their modelling
   // modelled from the upper left, as the reference's are: each head keeps a grey crease on its lower right
   cloudKey: normalize([-0.6, 0.62, 0.3]),
-  cloudStyle: { gain: 0.42, ambient: 0.8, edge: 5, fray: 0.07, billows: 14 },
+  cloudStyle: { gain: 0.5, ambient: 1.0, edge: 4.5, fray: 0.04, billows: 9, blend: 18, warp: 0.25 },
   // placed from the reference's layout at 16:9: large upper middle, broad middle right, small lower middle
   clouds: [
     { x: 1.6, y: 9, z: -5.4, width: 22, depth: 7, height: 6.6, seed: 41, taper: 0.55, core: 0.9 },
