@@ -213,3 +213,91 @@ Add `bare` to see the land alone.
    still a little boxy.
 2. The target's glass has a slightly organic, liquid edge with bright blobs; ours is a clean rounded rectangle.
 3. The small white wildflowers at the lower left are not there.
+
+## Grass feasibility experiment (`?scene=grass-feasibility`), branch `experiment/soft-grass-feasibility` — 2026-11-16
+A focused test of whether real-time 3D grass can reach the approved hero reference (`design/reference/approved-hero-reference.png`). The test uses one hillside (a ridge with a darker valley in front), one fixed camera at 1672×941 and one low sun. It has no clouds, glass, UI, image displacement or particles, and the reference image is never used as a texture.
+
+**Verdict: NO-GO** for reaching the approved reference with real-time blade geometry. Details are under "Decision" below.
+
+### Running it
+- `npm run dev`, then go to http://localhost:5428/?scene=grass-feasibility&candidate=b&wind=breeze
+- `candidate=a|b`, `wind=calm|breeze|gust` (wind scale 0.08 / 1 / 2.3), `compare` (no loop; frames rendered on request through `window.__grass.render(t)`), `dpr=`
+- Stills: `node scripts/grass-shot.mjs <prefix> <a|b> <wind> [t...]`. Recordings and frame timing: `node scripts/grass-film.mjs <outdir> a b`. Both use a headless browser on the Metal GPU.
+
+### Sources inspected and licences
+| Source | What it is | Licence | Used how |
+|---|---|---|---|
+| WindSweptGrass (gist kitchenbeats/7e80e53e…) | three.js WebGL2 multi-LOD grass: a near detail grid, world blade clusters, distant cards, Bézier bend, scrolling-noise wind, governor | MIT, © 2026 J Hanlon / I Dream Of AI | Vendored as `src/feasibility/vendor/WindSweptGrass.js` with its licence; the only patch is a wind-strength uniform (9 marked "FEASIBILITY PATCH" lines). It is also the base of candidate B. |
+| Revo Realms `src/entities/Vegetation/Grass.ts` (branch feat/new-world) and the blog | WebGPU/TSL compute grass with per-instance wind state | MIT, Aleksandar Gjoreski | Ideas only: root-to-tip colour, a base shade, flow-aligned blades. Its compute path cannot run on WebGL2, and its damped per-instance wind state was **not** ported. |
+| Zephyr (RetherSzu) `grass.vert` / `grass.frag` | GLSL grass shading | MIT | Ideas only: normals blended toward the terrain, soft translucency, tip highlight. |
+
+No code was copied from Revo or Zephyr. The vendored files are excluded from lint because they are third-party.
+
+### Candidates
+- **A: WindSweptGrass as published.** The only tuning is its own colour uniforms, set to the reference's olive palette (root `#5E8236`, tip `#BCCB68`, far `#6B8C40`).
+- **B: SoftGrass** (`src/feasibility/SoftGrass.js`, marked "SOFT GRASS"). It is the same architecture with these changes:
+  - finer 6-segment tapered blades with a pointed tip;
+  - terrain sampled for every layer;
+  - blade normals blended 66% toward the terrain normal, so the hill's shape reads through the grass;
+  - blades oriented along a coherent, noise-warped flow field, longer (×1.4) and thinner (×0.62);
+  - a static lean along the flow;
+  - a softer root-to-tip ramp, transmission reduced, and a faint warm tip highlight.
+
+Both candidates bend blade geometry in the vertex shader, with the root fixed and displacement growing to the tip. Gust fronts are scrolling noise bands.
+
+### Correction rounds (both used)
+1. **Scale and shading.** At first most of the view was beyond the dense detail layer, so the grass looked sparse and bald. The hill was rescaled (×0.8), the camera moved closer, terrain-normal shading added and the palette set.
+2. **Focus and light.** The detail field now centres on the viewed slope; sun and exposure were adjusted.
+
+No visual tuning was done after round 2.
+
+### Evidence (`docs/media/feasibility/`)
+- Stills: `candidate-a.jpg`, `candidate-b.jpg`, `a-vs-b.jpg`, `reference-a-b.jpg` (reference top left, A top right, B bottom left).
+- Recordings (10 s each, scaled to 960 px): `b-calm.mp4`, `b-breeze.mp4` (ambient), `b-gust.mp4`, `a-breeze.mp4`, `a-gust.mp4`.
+- Motion analysis:
+  - `slitscan-breeze-gust.jpg` shows one image row over 300 frames, breeze above and gust below. Gust shows diagonal bright bands, which are fronts travelling across the field. Breeze is mostly local sway.
+  - `b-gust-macro.jpg` shows a 200×120 crop over 1.2 s: strands bend while their bases stay in place.
+- Frame difference, mean |Δ| over 0.5 s (0–255):
+
+  | | calm | breeze | gust |
+  |---|---|---|---|
+  | A | 3.6 | 15.6 | 25.1 |
+  | B | 7.1 | 20.6 | 26.6 |
+
+  Motion rises monotonically with the wind mode.
+
+### Performance and stability (this Mac, Chromium on Metal, 1672×941, DPR 1)
+- All six recordings (A and B × calm, breeze, gust): median frame time 16.7 ms and p95 ≤ 16.8 ms, which is the 60 Hz vsync cap, so the headroom above it was not measured.
+- B breeze had a p99 of 33.3 ms (occasional single dropped frames).
+- Scene size: about 2.9 M triangles for A and 5.9 M for B, 37–39 draw calls.
+- No console errors and no WebGL warnings.
+- Not measured on an integrated GPU or a phone. With 5.9 M triangles B is unlikely to hold 60 fps there without the governor dropping quality.
+
+### Tests (2026-11-16)
+- `npm run typecheck`, `npm run lint`: clean.
+- `npm test`: 65 passing, including the new `tests/unit/hillside.test.ts` (the ridge stands above the valley; the terrain contract holds).
+- `npm run build`: succeeds.
+- E2E `stability.spec.ts` and `hero.spec.ts`: 17 passing (existing routes unaffected). There is no e2e spec for the feasibility route; its evidence is the capture scripts above.
+
+### Honest weaknesses
+- **A** reads as a game grass carpet: short, upright, randomly oriented blades with no sense of flowing grass. It is nowhere near the reference.
+- **B** is clearly better than A: long, coherent, wind-combed grass, a legible ridge and valley, and believable gust fronts. Against the reference it still falls short:
+  - it reads as fine hair or straw over a darker base, not the reference's thick, soft volume;
+  - the reference's luminous, saturated sunlit swells and deep soft shadow pools are missing; B is darker and flatter in value;
+  - there is a visible layer seam near the ridge crest (detail layer against the cluster layer);
+  - the landscape scale is smaller than the reference's. Pulling back to the reference's scale moves most of the view beyond the dense layer, where coverage breaks down. That was the round 1 failure.
+- The reference's look comes mostly from large-scale light: big soft swells, rim-lit crests, smooth shadow gradients. Per-blade geometry adds aliasing-prone fine detail at exactly the scale where the reference is smooth.
+
+### Decision
+**NO-GO** on building the hero from real-time grass geometry in pursuit of the approved reference.
+- Both correction rounds are spent. B is a competent real-time meadow, but not the reference, and the gap is structural, not a matter of parameters. It comes from three things:
+  - coverage and density at the reference's scale;
+  - the soft volumetric quality of the light;
+  - triangle cost.
+- Closing it would need a different technique, for example:
+  - a lit volumetric or shell layer for the mass of the grass, with blades only in the foreground;
+  - or pre-rendered or baked lighting.
+
+  Either is new research, not tuning.
+- **What is usable:** B can serve as a secondary "live grass" study, or as a foreground layer, if a lower fidelity bar is acceptable.
+- **Scope:** per the brief, the full website was not started.

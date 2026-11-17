@@ -4,7 +4,8 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules', 'test-results'] },
+  // the grass experiment vendors a third-party module (and a derived copy) as written: not linted here
+  { ignores: ['dist', 'node_modules', 'test-results', 'src/feasibility/**/*.js'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
