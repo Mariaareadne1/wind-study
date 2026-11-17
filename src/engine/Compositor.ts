@@ -15,6 +15,7 @@ import {
   type WebGLRenderer,
 } from 'three';
 import { makeNoise } from '../scene/noise';
+import { GLASS_GLSL } from './glass';
 
 const SAMPLES = 4;
 const PAPER_SIZE = 256;
@@ -72,7 +73,7 @@ export class Compositor {
       glslVersion: GLSL3,
       depthTest: false,
       depthWrite: false,
-      uniforms: { uScene: { value: this.target.texture }, uPixel: { value: [1 / 4, 1 / 4] }, uDpr: { value: 1 }, uPaper: { value: makePaper() }, uMat: { value: 0 }, uSize: { value: [4, 4] }, uLift: { value: 1 }, uGrain: { value: 1 }, uSat: { value: 1 }, uSoft: { value: 1 }, uExposure: { value: 0 } },
+      uniforms: { uScene: { value: this.target.texture }, uPixel: { value: [1 / 4, 1 / 4] }, uDpr: { value: 1 }, uPaper: { value: makePaper() }, uMat: { value: 0 }, uSize: { value: [4, 4] }, uLift: { value: 1 }, uGrain: { value: 1 }, uSat: { value: 1 }, uSoft: { value: 1 }, uExposure: { value: 0 }, uGlass: { value: [0, 0, 0, 0] }, uGlassShape: { value: [0, 0, 0, 0] }, uGlassPtr: { value: [0, 0, 0, 0] } },
       vertexShader: /* glsl */ `
         in vec3 position;
         out vec2 vUv;
@@ -93,12 +94,19 @@ export class Compositor {
         uniform float uSoft;
         uniform float uExposure; // 0: the scene is already display colour; above 0: linear light, filmic tonemap
         vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
-        void main() {
-          // the faintest softening: fibres should feel soft, never crunchy
+        ${GLASS_GLSL}
+        // the faintest softening: fibres should feel soft, never crunchy
+        vec3 sceneAt(vec2 uv) {
           vec2 px = uPixel * max(uDpr * 0.6, 0.75);
-          vec3 c = texture(uScene, vUv).rgb * (1.0 - 0.4 * uSoft);
-          c += texture(uScene, vUv + px * vec2(0.7, 0.4)).rgb * 0.2 * uSoft;
-          c += texture(uScene, vUv - px * vec2(0.7, 0.4)).rgb * 0.2 * uSoft;
+          vec3 c = texture(uScene, uv).rgb * (1.0 - 0.4 * uSoft);
+          c += texture(uScene, uv + px * vec2(0.7, 0.4)).rgb * 0.2 * uSoft;
+          c += texture(uScene, uv - px * vec2(0.7, 0.4)).rgb * 0.2 * uSoft;
+          return c;
+        }
+        void main() {
+          // glass: inside the panel, the land is seen through a thick lens (see glass.ts)
+          GlassHit glass = glassHit(gl_FragCoord.xy);
+          vec3 c = glass.inside > 0.0 ? glassScene(glass) : sceneAt(vUv);
 
           if (uExposure > 0.0) c = pow(aces(c * uExposure), vec3(1.0 / 2.2));
           vec2 frag = gl_FragCoord.xy / uDpr;
@@ -130,6 +138,7 @@ export class Compositor {
             vec3 paper = vec3(0.957, 0.937, 0.87) * (1.0 + (tooth - 0.5) * 0.05);
             c = mix(paper, c, paint);
           }
+          c = glassFinish(c, glass, gl_FragCoord.xy);
           c += (tooth - 0.5) * 1.5 / 255.0;
           outColor = vec4(c, 1.0);
         }`,
@@ -154,6 +163,28 @@ export class Compositor {
     u.uGrain.value = f.grain;
     u.uSat.value = f.saturation;
     u.uSoft.value = f.soften;
+  }
+
+  /**
+   * The glass panel, in device pixels from the canvas's top left, or null for none.
+   * radius, bevel and thickness are device pixels too.
+   */
+  setGlass(g: { x: number; y: number; width: number; height: number; radius: number; bevel: number; thickness: number } | null): void {
+    const u = this.material.uniforms;
+    if (!g) {
+      u.uGlassShape.value = [0, 0, 0, 0];
+      return;
+    }
+    const h = u.uSize.value[1] as number;
+    // the shader works y-up, from the canvas's bottom left
+    u.uGlass.value = [g.x + g.width / 2, h - (g.y + g.height / 2), g.width / 2, g.height / 2];
+    u.uGlassShape.value = [g.radius, g.bevel, g.thickness, 1];
+  }
+
+  /** Pointer over the glass, in device pixels from the top left, and how present it is (0..1). */
+  setGlassPointer(x: number, y: number, presence: number): void {
+    const h = this.material.uniforms.uSize.value[1] as number;
+    this.material.uniforms.uGlassPtr.value = [x, h - y, presence, 0];
   }
 
   /** Painted border width in device px; 0 for full bleed. */

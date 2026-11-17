@@ -7,6 +7,8 @@
 }
 * { box-sizing: border-box; }
 html, body, #root { margin: 0; height: 100%; overflow: hidden; background: #93b86c; overscroll-behavior: none; }
+/* the portfolio hero is a page that scrolls on to the sections below it */
+html.hero-mode, html.hero-mode body, html.hero-mode #root { height: auto; overflow: visible; overflow-x: hidden; overscroll-behavior: auto; background: #f3f1e8; }
 .stage { position: fixed; inset: 0; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
 .stage canvas {
   position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none;

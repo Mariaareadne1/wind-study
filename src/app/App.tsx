@@ -3,6 +3,7 @@ import { Store, useStore } from '../state/store';
 import { loadStored, saveStored, tuningFromQuery } from '../state/tuning';
 import { Controls } from '../ui/Controls';
 import { WindApp } from './WindApp';
+import { HeroPage } from '../hero/HeroPage';
 import * as patterns from '../wind/patterns';
 import { profileFor } from '../scene/profiles';
 import { strandPoint, BEND_GLSL } from '../grass/bend';
@@ -40,7 +41,12 @@ function initialStore(): Store {
   return store;
 }
 
+/** The portfolio hero is its own page; every other version is the Wind Study stage. */
 export function App() {
+  return query().get('scene') === 'portfolio' ? <HeroPage /> : <Stage />;
+}
+
+function Stage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [store] = useState(initialStore);
   const [app, setApp] = useState<WindApp | null>(null);

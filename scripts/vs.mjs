@@ -16,6 +16,8 @@ await p.goto(`${process.env.URL ?? 'http://localhost:5428/'}?compare&scene=${pro
 await p.waitForFunction(() => window.__wind && !window.__wind.store.get().loading, null, { timeout: 90000 });
 const data = await p.evaluate((n) => new Promise((res) => { const w = window.__wind; w.app.stepFrames(n); w.app.onceAfterFrame(() => res(w.app.canvas.toDataURL('image/png'))); }), +steps);
 writeFileSync(`${prefix}.png`, Buffer.from(data.split(',')[1], 'base64'));
+// PAGE=1: the page as a visitor sees it, HTML included (the canvas alone has no text)
+if (process.env.PAGE) await p.screenshot({ path: `${prefix}-page.png` });
 await b.close();
 execFileSync(ffmpeg, ['-y', '-loglevel', 'error', '-i', TARGET, '-i', `${prefix}.png`, '-filter_complex', '[0:v]scale=-2:1100[a];[1:v]scale=-2:1100[b];[a][b]hstack', '-q:v', '3', `${prefix}-vs.jpg`]);
 execFileSync(ffmpeg, ['-y', '-loglevel', 'error', '-i', `${prefix}.png`, '-vf', `crop=520:520:${process.env.CX ?? 160}:${process.env.CY ?? 520}`, `${prefix}-close.png`]);

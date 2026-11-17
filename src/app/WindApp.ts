@@ -53,6 +53,17 @@ interface ActiveLine extends InkLine {
   gust: Gust;
 }
 
+/** A glass panel's rectangle and optics, in CSS pixels relative to the canvas. */
+export interface GlassRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  radius: number;
+  bevel: number;
+  thickness: number;
+}
+
 /** Runs the meadow: owns the renderer, the wind and the grass, and turns gestures into gusts. */
 export class WindApp {
   readonly renderer: WebGLRenderer;
@@ -74,6 +85,7 @@ export class WindApp {
   private cyclist: Cyclist | null = null;
   private shadowTex: DataTexture | null = null;
   private cloudsBaked = false;
+  private glassRect: GlassRect | null = null;
   private pendingBake = 0;
   private readonly cloudOffset = { value: new Vector3() };
   private swirlFn: ReturnType<typeof makeSwirl> | null = null;
@@ -451,6 +463,28 @@ export class WindApp {
   private applyFrame(): void {
     const framed = this.store.get().framed;
     this.compositor.setMat(framed ? frameMargin(this.cssW, this.cssH) * this.dpr : 0);
+    this.applyGlass();
+  }
+
+  /**
+   * A glass panel over the land, in CSS pixels relative to the canvas, or null. The compositor
+   * refracts the live scene inside it; the panel's own content stays ordinary HTML on top.
+   */
+  setGlass(rect: GlassRect | null): void {
+    this.glassRect = rect;
+    this.applyGlass();
+    if (!this.running && !this.disposed && !this.store.get().loading) this.renderFrame();
+  }
+
+  /** Where the pointer is over the glass, in CSS pixels relative to the canvas; presence 0..1. */
+  setGlassPointer(x: number, y: number, presence: number): void {
+    this.compositor.setGlassPointer(x * this.dpr, y * this.dpr, presence);
+  }
+
+  private applyGlass(): void {
+    const g = this.glassRect;
+    const d = this.dpr;
+    this.compositor.setGlass(g ? { x: g.x * d, y: g.y * d, width: g.width * d, height: g.height * d, radius: g.radius * d, bevel: g.bevel * d, thickness: g.thickness * d } : null);
   }
 
   private beginGust(): Gust {

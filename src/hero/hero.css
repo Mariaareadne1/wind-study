@@ -1,0 +1,183 @@
+/*
+ * Portfolio hero. Sizes come from the reference at 1914 × 1048: the panel is 553 × 488 at
+ * (112, 252), so its type is set in container units (cqw of the panel) and scales as one object.
+ */
+.hero {
+  --hero-cream: #f5f2e7;
+  --hero-cream-soft: rgba(245, 242, 231, 0.86);
+  --hero-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: #5d7a3c;
+  isolation: isolate;
+}
+
+/* A still of the same landscape, captured from the renderer, shown until the live scene takes over. */
+.hero-still {
+  position: absolute;
+  inset: 0;
+  background: #5d7a3c center / cover no-repeat;
+  background-image: image-set(url('/hero/still-wide.webp') type('image/webp'));
+  transition: opacity 0.6s var(--hero-ease);
+}
+@media (max-aspect-ratio: 4/5) {
+  .hero-still { background-image: image-set(url('/hero/still-tall.webp') type('image/webp')); }
+}
+.hero.live .hero-still { opacity: 0; }
+
+.hero-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  /* vertical swipes scroll the page; the grass answers the pointer without taking the gesture */
+  touch-action: pan-y;
+  opacity: 0;
+  transition: opacity 0.6s var(--hero-ease);
+  cursor: default;
+}
+.hero.live .hero-canvas { opacity: 1; }
+
+.intro {
+  position: absolute;
+  left: 5.85vw;
+  top: 24%;
+  width: clamp(330px, 28.9vw, 640px);
+  aspect-ratio: 553 / 488;
+  /* the panel is the container its own content is measured against */
+  container-type: inline-size;
+  border-radius: clamp(30px, 12.3%, 80px);
+  color: var(--hero-cream);
+  font-family: 'Inter Tight Variable', 'Inter Tight', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Without the live glass (loading, or no WebGL): a frosted, tinted stand-in with the same shape. */
+.intro:not(.live) {
+  background: linear-gradient(160deg, rgba(232, 240, 220, 0.24), rgba(70, 96, 52, 0.22));
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  backdrop-filter: blur(14px) saturate(1.1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22),
+    inset 0 -18px 40px rgba(30, 50, 25, 0.18),
+    0 18px 50px rgba(20, 35, 15, 0.22);
+}
+
+.intro-body {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 9.6cqw 9.4cqw 9.2cqw;
+}
+.intro p { margin: 0; }
+
+.intro-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 2.72cqw;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+.intro-year { letter-spacing: 0.04em; }
+
+.intro-title {
+  margin: 9.4cqw 0 0;
+  /* Newsreader at display size: wide, light, high-contrast, like the reference (Instrument Serif read too condensed) */
+  font-family: 'Newsreader Variable', 'Newsreader', 'Iowan Old Style', Georgia, serif;
+  font-weight: 340;
+  font-variation-settings: 'opsz' 72;
+  font-size: 11.9cqw;
+  line-height: 0.98;
+  letter-spacing: -0.012em;
+}
+.intro-title span,
+.intro-description span { display: block; }
+
+.intro-description {
+  margin-top: 6.6cqw !important;
+  font-size: 3.5cqw;
+  line-height: 1.56;
+  font-weight: 400;
+  color: var(--hero-cream-soft);
+  letter-spacing: 0.002em;
+}
+
+.intro-nav {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 3.6cqw;
+}
+.intro-nav ul {
+  display: flex;
+  gap: 8cqw;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.intro a {
+  color: inherit;
+  text-decoration: underline transparent 1px;
+  text-underline-offset: 0.3em;
+  border-radius: 6px;
+  transition: text-decoration-color 0.25s var(--hero-ease), opacity 0.25s var(--hero-ease);
+}
+.intro a:hover { text-decoration-color: rgba(245, 242, 231, 0.7); }
+.intro a:focus-visible {
+  outline: 1.5px solid var(--hero-cream);
+  outline-offset: 5px;
+}
+.intro-arrow {
+  display: inline-flex;
+  width: 6.4cqw;
+  height: 6.4cqw;
+  min-width: 24px;
+  min-height: 24px;
+  transition: transform 0.35s var(--hero-ease);
+}
+.intro-arrow svg { width: 100%; height: 100%; }
+.intro-arrow:hover { transform: translate(2px, -2px); }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Tall windows: the panel moves to the lower part of the frame and spans most of the width. */
+@media (max-aspect-ratio: 4/5) {
+  .intro {
+    left: 50%;
+    top: auto;
+    bottom: max(5vh, calc(env(safe-area-inset-bottom) + 18px));
+    transform: translateX(-50%);
+    width: min(88vw, 440px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-still, .hero-canvas, .intro a, .intro-arrow { transition: none; }
+}
+
+/* Standalone page: the sections the links lead to. A host site supplies its own. */
+.hero-page { background: #f3f1e8; color: #1c2a1e; font-family: 'Inter Tight Variable', 'Inter Tight', system-ui, sans-serif; }
+.hero-page section[id] {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 72px 24px;
+  scroll-margin-top: 24px;
+}
+.hero-page h2 { font-family: 'Newsreader Variable', Georgia, serif; font-weight: 360; font-size: 40px; margin: 0 0 8px; }
+.hero-page section[id] p { margin: 0; color: #4a5a4c; line-height: 1.6; }
