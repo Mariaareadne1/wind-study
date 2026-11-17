@@ -14,7 +14,7 @@ const GLASS = { referenceWidth: 478, radius: 48, bevel: 34, thickness: 26, maxRa
 
 type Props = {
   content?: HeroContent;
-  options?: { compare?: boolean; showPanel?: boolean; dpr?: number; debug?: number; motion?: 'blade' | 'sheet' };
+  options?: { compare?: boolean; showPanel?: boolean; dpr?: number; debug?: number; motion?: 'blade' | 'sheet'; strength?: number };
   onReady?: (app: HybridApp) => void;
 };
 
@@ -55,7 +55,7 @@ export function HybridHero({ content = DEFAULT_CONTENT, options = {}, onReady }:
       }
     };
     try {
-      app = new HybridApp(canvas, { plateUrl: PLATE_URL, maskUrl: MASK_URL, flowUrl: FLOW_URL, motion: options.motion, focus, dpr: options.dpr, reducedMotion, debug: options.debug });
+      app = new HybridApp(canvas, { plateUrl: PLATE_URL, maskUrl: MASK_URL, flowUrl: FLOW_URL, motion: options.motion, strength: options.strength, focus, dpr: options.dpr, reducedMotion, debug: options.debug });
       appRef.current = app;
       canvas.addEventListener('webglcontextlost', lost);
       canvas.addEventListener('webglcontextrestored', restored);

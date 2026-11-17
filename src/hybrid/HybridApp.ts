@@ -42,6 +42,8 @@ export interface HybridOptions {
   plateUrl: string;
   maskUrl: string;
   flowUrl: string;
+  /** Multiplies how far the grass moves (1 = as tuned; 2 = twice as far, for trying it out). */
+  strength?: number;
   /** 'blade' (default): strand by strand; 'sheet': the detail moves as one layer. */
   motion?: 'blade' | 'sheet';
   /** Focal point of the crop, as fractions of the plate. */
@@ -136,7 +138,8 @@ export class HybridApp {
         // plate px -> field uv: the plate spans the field's width, from its top-left corner
         uFieldMap: { value: [1 / PLATE.width, FIELD.width / PLATE.width / FIELD.depth, 0, 0] },
         uDetailLod: { value: HYBRID_TUNING.detailLod },
-        uShiftPx: { value: HYBRID_TUNING.shiftPx },
+        uShiftPx: { value: HYBRID_TUNING.shiftPx * (opts.strength ?? 1) },
+        uMaxShift: { value: 6 * (opts.strength ?? 1) },
         uFlow: { value: null },
         uBlade: { value: opts.motion === 'sheet' ? 0 : 1 },
         uBladeLen: { value: HYBRID_TUNING.bladeLen },

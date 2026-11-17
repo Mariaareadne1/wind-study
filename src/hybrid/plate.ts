@@ -49,12 +49,12 @@ uniform vec2 uPlateSize;
 uniform vec4 uFieldMap;   // plate px -> wind-field uv: scale x, scale y, offset x, offset y
 uniform float uDetailLod; // mip level that counts as "the hills": detail is everything finer
 uniform float uShiftPx;   // plate px of detail shift per unit of grass bend
+uniform float uMaxShift;  // however hard the gust, detail never travels further than this (plate px)
 uniform sampler2D uFlow;  // strand direction as the doubled angle (rg) and coherence (b), from scripts/hybrid-flow.mjs
 uniform float uBlade;     // 0: the detail moves as one sheet; 1: strand by strand, bending from root to tip
 uniform float uBladeLen;  // plate px from a strand's root to its tip, roughly
 uniform float uDebug;     // 1: show the mask, 2: show the bend field, 3: show the strand directions
 out vec4 outColor;
-const float MAX_SHIFT_PX = 6.0;
 
 // explicit levels throughout: implicit-derivative sampling is undefined where neighbouring pixels disagree
 vec3 highpass(vec2 uv) {
@@ -131,7 +131,7 @@ void main() {
   vec2 shift = bend * uShiftPx * near * mask;
   // however hard the gust, detail never travels more than a few pixels: beyond that strands smear and double
   float reachPx = length(shift);
-  shift *= min(1.0, MAX_SHIFT_PX / max(reachPx, 1e-4));
+  shift *= min(1.0, uMaxShift / max(reachPx, 1e-4));
   // sampling upwind moves what is seen downwind; no branch, so every pixel samples alike (zero shift adds zero)
   vec2 from = uv - shift / uPlateSize;
   col += (highpass(from) - highpass(uv)) * mask;
