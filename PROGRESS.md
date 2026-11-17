@@ -200,6 +200,14 @@ Add `bare` to see the land alone.
   into one mass. Both are now per-scene (`warp`, `blend`). The portfolio uses a light warp (0.25) and a sharp union
   (18), so each head stays a distinct rounded billow with a grey crease. Sunlit keeps its defaults (0.8, 10).
 
+### Delivery (milestone 8)
+- Final images: `docs/media/portfolio/final-desktop.jpg`, `final-phone.jpg`, `final-vs-target.jpg`; recording
+  `docs/media/portfolio/hero-interaction.mp4` (hover, then drag; `node scripts/hero-film.mjs out.mp4`).
+- Integration notes: `docs/PORTFOLIO_HERO.md`.
+- Preview deployment: https://wind-study-hbyi693ii-mariashowalter1819-4477s-projects.vercel.app/?scene=portfolio
+  (behind Vercel sign-in; the same production build passes the 9 hero tests locally with `E2E_PROD=1`).
+  Production (wind-study.vercel.app) is unchanged.
+
 ### Remaining visual differences (largest first)
 1. Clouds: the target's tails are wispier and its undersides flatter and greyer; the middle-right cloud's right end is
    still a little boxy.
