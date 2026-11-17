@@ -74,6 +74,8 @@ export interface SceneProfile {
   /** Light the clouds' own forms are modelled by: a little in front, so their billows read. */
   cloudKey?: readonly [number, number, number];
   cloudStyle?: CloudStyle;
+  /** Moving the mouse without pressing stirs a soft breeze, this strong relative to a drawn gust. */
+  hover?: { gain: number };
   flowers?: { flowers: number; seedHeads: number };
   /** The land's general slope without its waves, so wave fronts can be told from the climb. */
   baseline?: (z: number) => number;
@@ -177,6 +179,7 @@ export const PORTFOLIO: SceneProfile = {
   grass: { ...SUNLIT.grass, sizeScale: 0.95, density: 1.4 },
   long: { ...SUNLIT.long!, length: 9, width: 0.45, combed: true },
   canopy: 0.4,
+  hover: { gain: 0.45 },
   // olive rather than lime: the reference's greens sit only a little above their reds, with real blue in them
   realistic: { ...SUNLIT.realistic!, sunColor: [2.9, 2.55, 1.75], finish: { ...SUNLIT.realistic!.finish, saturation: 0.76, exposure: 1.1 } },
   // softer and less bright than Sunlit's: feathered rims, and whites that keep their modelling

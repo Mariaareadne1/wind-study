@@ -5,6 +5,7 @@ import { GrassField, makeGrassUniforms } from '../grass/GrassField';
 import { buildGrass } from '../grass/tufts';
 import { FADE, type InkLine, StrokeLine } from '../interaction/StrokeLine';
 import { PointerSmoother } from '../interaction/stroke';
+import { HoverBreeze } from '../interaction/HoverBreeze';
 import { placeCamera, screenRays } from '../scene/framing';
 import { MEADOW, type SceneProfile } from '../scene/profiles';
 import { Clouds } from '../scene/Clouds';
@@ -86,6 +87,7 @@ export class WindApp {
   private shadowTex: DataTexture | null = null;
   private cloudsBaked = false;
   private glassRect: GlassRect | null = null;
+  private hover: HoverBreeze | null = null;
   private pendingBake = 0;
   private readonly cloudOffset = { value: new Vector3() };
   private swirlFn: ReturnType<typeof makeSwirl> | null = null;
@@ -182,6 +184,7 @@ export class WindApp {
       this.flowers.mesh.visible = false;
     }
 
+    if (this.profile.hover) this.hover = new HoverBreeze(this.sim, (x, y) => this.worldAt(x, y), () => this.gain(), this.profile.hover);
     this.resize();
     this.rebuildGrass();
     this.syncSettings();
@@ -194,6 +197,7 @@ export class WindApp {
     this.ro.observe(canvas.parentElement ?? canvas);
     canvas.addEventListener('pointerdown', this.onDown);
     canvas.addEventListener('pointermove', this.onMove);
+    canvas.addEventListener('pointerleave', this.onLeave);
     canvas.addEventListener('pointerup', this.onUp);
     canvas.addEventListener('pointercancel', this.onUp);
     canvas.addEventListener('lostpointercapture', this.onUp);
@@ -494,8 +498,13 @@ export class WindApp {
     return g;
   }
 
+  private onLeave = (): void => {
+    this.hover?.end();
+  };
+
   private onDown = (e: PointerEvent): void => {
     if (this.pointerId !== null || e.button !== 0) return;
+    this.hover?.end();
     const at = this.worldAt(e.clientX, e.clientY);
     if (!at) return;
     e.preventDefault();
@@ -514,6 +523,11 @@ export class WindApp {
   };
 
   private onMove = (e: PointerEvent): void => {
+    // a mouse moving over the land without pressing stirs a soft breeze (scenes that ask for it)
+    if (this.pointerId === null && e.pointerType === 'mouse' && e.buttons === 0 && this.hover && !this.sim.paused) {
+      this.hover.move(e);
+      return;
+    }
     if (e.pointerId !== this.pointerId || !this.activeGust) return;
     e.preventDefault();
     const events = e.getCoalescedEvents?.() ?? [];
@@ -683,6 +697,8 @@ export class WindApp {
     const c = this.canvas;
     c.removeEventListener('pointerdown', this.onDown);
     c.removeEventListener('pointermove', this.onMove);
+    c.removeEventListener('pointerleave', this.onLeave);
+    this.hover?.dispose();
     c.removeEventListener('pointerup', this.onUp);
     c.removeEventListener('pointercancel', this.onUp);
     c.removeEventListener('lostpointercapture', this.onUp);
