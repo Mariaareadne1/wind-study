@@ -8,6 +8,8 @@ export interface Framing {
   targetZ: number;
   /** Where the camera looks, height above y=0. */
   targetY?: number;
+  /** Where the camera looks across the land; it moves sideways with it, so the view stays square-on. */
+  targetX?: number;
 }
 
 /**
@@ -61,8 +63,9 @@ export function placeCamera(camera: PerspectiveCamera, aspect: number, framing: 
   camera.aspect = aspect;
   camera.near = 2;
   camera.far = 220;
-  camera.position.set(0, ty + Math.sin(f.pitch) * f.distance, f.targetZ + Math.cos(f.pitch) * f.distance);
-  camera.lookAt(new Vector3(0, ty, f.targetZ));
+  const tx = f.targetX ?? 0;
+  camera.position.set(tx, ty + Math.sin(f.pitch) * f.distance, f.targetZ + Math.cos(f.pitch) * f.distance);
+  camera.lookAt(new Vector3(tx, ty, f.targetZ));
   camera.updateProjectionMatrix();
   camera.updateMatrixWorld(true);
 }

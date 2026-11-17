@@ -184,7 +184,8 @@ export class WindApp {
       this.flowers.mesh.visible = false;
     }
 
-    if (this.profile.hover) this.hover = new HoverBreeze(this.sim, (x, y) => this.worldAt(x, y), () => this.gain(), this.profile.hover);
+    // with reduced motion, only a deliberate drag moves the grass; passing the mouse over it does not
+    if (this.profile.hover && !opts.reducedMotion) this.hover = new HoverBreeze(this.sim, (x, y) => this.worldAt(x, y), () => this.gain(), this.profile.hover);
     this.resize();
     this.rebuildGrass();
     this.syncSettings();
@@ -253,7 +254,7 @@ export class WindApp {
 
   /** Clouds sway slowly; their shadows move with them. */
   private driftClouds(time: number): void {
-    if (!this.clouds) return;
+    if (!this.clouds || this.opts.reducedMotion) return;
     const dx = Math.sin(time * 0.045) * 1.6;
     const dz = Math.sin(time * 0.031 + 1.3) * 0.6;
     this.cloudOffset.value.set(dx, Math.sin(time * 0.07) * 0.15, dz);

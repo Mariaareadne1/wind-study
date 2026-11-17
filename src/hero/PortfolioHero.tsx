@@ -65,8 +65,10 @@ export function PortfolioHero({ content = DEFAULT_CONTENT, seed = 7, options = {
         if (!disposed) setPhase('fallback');
       }
     }, 30);
+    // a lost graphics context shows the still and the frosted panel until the renderer recovers
     const unsubscribe = store.subscribe(() => {
-      if (store.get().error && !disposed) setPhase('fallback');
+      if (disposed || !appRef.current) return;
+      setPhase(store.get().error ? 'fallback' : 'live');
     });
     return () => {
       disposed = true;

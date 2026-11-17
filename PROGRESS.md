@@ -95,7 +95,7 @@ shape). Compare with `scripts/hero.sh name [extra query]`: renders `?compare&sce
 Add `bare` to see the land alone.
 
 ### Current milestone
-2 of 8, composition and terrain, with early grass work.
+8 of 8: polish and delivery. Milestones 1–7 are done; the remaining visual gaps are listed below.
 
 ### Visual breakdown of the target
 - **Landscape:** no sky. Grass-covered swells fill the frame, with crests rising gently to the right in long S-curves.
@@ -150,8 +150,46 @@ Add `bare` to see the land alone.
 - The light on these clouds sat far past the tonemapper's white, so they were flat white. A gain of 0.42 lets the heads
   model. They are lit from the upper left (`cloudKey`), as in the target.
 
+### Glass panel (milestone 5)
+- `src/engine/glass.ts`: drawn inside the compositor's final pass, so it refracts the live landscape texture directly,
+  with no extra copy of the frame and no read-back. Ported from glass-studies (MIT, own code): squircle bevel, IOR 1.52,
+  dispersion toward the rim, a frosted body (24-tap rotated spiral), a milky rim band, Fresnel rim light, top streak,
+  hairline, a pointer-following glint and a soft contact shadow.
+- `src/hero/`: `PortfolioHero` (the renderer's lifecycle, glass placement, loading and fallback), `IntroPanel` (HTML
+  text and navigation), `content.ts` (text and links as data, with `safeHref`), `HeroPage` (the standalone page).
+- Type: Newsreader at display optical size for the title (Instrument Serif was tried and read too condensed next to the
+  reference), Inter Tight for the rest. Both are OFL, bundled locally. Sizes are container units of the panel.
+- Links: Work, Playground and About go to `#work`, `#playground` and `#about` on the standalone page. The arrow opens the
+  full Wind Study. All are overridable from the address (`?work=…`) or by passing `content`.
+
+### Interaction (milestone 6)
+- `src/interaction/HoverBreeze.ts`: an ordinary mouse move over the land drives a soft gust through the existing
+  pipeline. It is 0.45 of a drawn gust, has no ink, ends after 140 ms of stillness, and is capped in length. Drag
+  is unchanged.
+- The panel sits over the canvas, so moving over it or clicking its links makes no wind (tested).
+- On touch, the canvas has `touch-action: pan-y`: vertical swipes scroll the page; sideways drags make wind.
+- Reduced motion: no hover breeze and no cloud drift; drags still work.
+- Measured against an identical control run (`scripts/hover-check.mjs`): hover changes the swept band about twice the
+  background difference and drag about twice hover. Both settle on their own.
+
+### Responsive, loading, performance (milestone 7)
+- Desktop keeps the reference's width of view at any 16:10 to 21:9 shape. Tall windows aim between the clouds,
+  look further up the hill, and put the panel low and wide.
+- Loading: a still captured from the renderer (`public/hero/still-wide.webp`, `still-tall.webp`) shows at once, with
+  a frosted CSS stand-in for the glass. The live scene fades in when ready (about 2.6 s here). Without WebGL, or
+  while a lost context recovers, the still and frosted panel stay (tested).
+- Frame time on this Mac (vsync, live hero, load about 6): 1440 × 900 at 2× steady 60 fps idle and dragging;
+  1920 × 1080 at 2× 60 fps median with some 33 ms frames; phone 390 × 844 steady 60 fps.
+  `node scripts/hero-perf.mjs W H DPR`.
+
+### Tests
+- 63 unit, 60 browser (9 new for the hero: text and links, glass alignment, refraction, hover vs panel, drag, keyboard
+  order, no-WebGL fallback, reduced motion, context loss and restore, phone layout). Meadow, Hills and Sunlit snapshots
+  are unchanged. Production build passes.
+
 ### Remaining visual differences (largest first)
-1. Clouds are still a little woolly and boxy next to the target's crisp cauliflower heads and wispy tails.
-2. The grass is less voluminous and less curved than the target's locks, and its highlights are weaker.
-3. A thin dark line on one crest at the right (a back face seen edge-on).
-4. No glass panel or text yet.
+1. Grass: at desktop sizes it reads as fine velvet. The target's long, curved locks catch the light more, with visible
+   strands and deeper gaps.
+2. Clouds: woolly and a little boxy beside the target's crisp cauliflower heads and wispy tails.
+3. The target's glass has a slightly organic, liquid edge with bright blobs; ours is a clean rounded rectangle.
+4. The small white wildflowers at the lower left are not there.

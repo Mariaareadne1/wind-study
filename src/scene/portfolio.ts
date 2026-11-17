@@ -34,14 +34,25 @@ export function portfolioHeight(n: (x: number, y: number) => number, x: number, 
  * A fixed, moderately raised view across the swells. Desktop windows keep the
  * reference's wide composition; tall phone windows look a little more steeply down.
  */
+/** The reference image's vertical field of view and shape. */
+const REFERENCE_FOV = 29;
+const REFERENCE_ASPECT = 1914 / 1048;
+
 export function portfolioFramingFor(aspect: number): Framing {
   const wide = smoothstep(0.6, 1.5, aspect);
+  // desktop windows keep the reference's width of view (29 degrees tall at 1914 x 1048), so a
+  // 16:10 window shows a little more land above and below rather than cropping the clouds
+  const across = Math.tan((REFERENCE_FOV / 2) * (Math.PI / 180)) * REFERENCE_ASPECT;
+  const desktopFov = 2 * Math.atan(across / Math.max(aspect, 1.2)) * (180 / Math.PI);
   const limit = aspect > 2.1 ? 2.1 / aspect : 1;
   return {
-    fov: mix(44, 29, wide) * limit,
-    pitch: (Math.PI / 180) * mix(40, 35, wide),
-    distance: mix(48, 52, wide),
-    targetZ: mix(-1, -3, wide),
+    fov: mix(50, Math.min(desktopFov, 36), wide) * limit,
+    pitch: (Math.PI / 180) * mix(48, 35, wide),
+    distance: mix(40, 52, wide),
+    // tall windows centre on the clouds, which sit right of the middle in the wide view
+    targetX: mix(5.5, 0, wide),
+    // and look a little further up the hill, leaving the lower part of the frame for the panel
+    targetZ: mix(2, -3, wide),
     targetY: 4,
   };
 }

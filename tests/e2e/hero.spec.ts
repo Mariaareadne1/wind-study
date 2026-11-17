@@ -5,6 +5,11 @@ import { frameDiff, snap } from './helpers';
 async function openHero(page: Page, extra = '') {
   await page.goto(`/?scene=portfolio&compare&panel&tufts=30000&dpr=1${extra}`);
   await page.waitForFunction(() => window.__wind && !window.__wind.store.get().loading, null, { timeout: 90_000 });
+  // the glass is placed once React has laid out the panel: wait until the compositor has it
+  await page.waitForFunction(() => {
+    const u = (window.__wind!.app as unknown as { compositor: { material: { uniforms: Record<string, { value: number[] }> } } }).compositor.material.uniforms;
+    return u.uGlassShape.value[3] === 1;
+  });
 }
 
 const gusts = (page: Page) => page.evaluate(() => window.__wind!.app.sim.activeGusts);
@@ -116,6 +121,44 @@ test.describe('the portfolio hero', () => {
     await expect(page.getByRole('link', { name: 'Work' })).toBeVisible();
     const still = await page.locator('.hero-still').evaluate((el) => getComputedStyle(el).backgroundImage);
     expect(still).toContain('still-wide');
+  });
+});
+
+test.describe('the portfolio hero with reduced motion', () => {
+  test.use({ colorScheme: 'light', reducedMotion: 'reduce' });
+
+  test('passing the mouse over the grass makes no wind, but a deliberate drag still does', async ({ page }) => {
+    await openHero(page);
+    const vw = page.viewportSize()!;
+    const y = vw.height * 0.72;
+    for (let i = 0; i <= 15; i++) {
+      await page.mouse.move(vw.width * (0.42 + 0.02 * i), y);
+      await snap(page, 'tmp', 1);
+    }
+    expect(await gusts(page)).toBe(0);
+    await page.mouse.down();
+    for (let i = 0; i <= 10; i++) {
+      await page.mouse.move(vw.width * (0.72 - 0.02 * i), y);
+      await snap(page, 'tmp', 1);
+    }
+    expect(await gusts(page)).toBeGreaterThan(0);
+    await page.mouse.up();
+  });
+
+  test('a lost graphics context falls back to the still and comes back when restored', async ({ page }) => {
+    await openHero(page);
+    const ext = await page.evaluate(() => {
+      const gl = window.__wind!.app.renderer.getContext();
+      const e = gl.getExtension('WEBGL_lose_context');
+      (window as unknown as { __lose: WEBGL_lose_context | null }).__lose = e;
+      e?.loseContext();
+      return !!e;
+    });
+    test.skip(!ext, 'WEBGL_lose_context is not available');
+    await expect(page.locator('.hero')).toHaveClass(/fallback/);
+    await expect(page.locator('section.intro')).not.toHaveClass(/live/);
+    await page.evaluate(() => (window as unknown as { __lose: WEBGL_lose_context }).__lose.restoreContext());
+    await expect(page.locator('.hero')).toHaveClass(/live/);
   });
 });
 

@@ -21,7 +21,7 @@
   inset: 0;
   background: #5d7a3c center / cover no-repeat;
   background-image: image-set(url('/hero/still-wide.webp') type('image/webp'));
-  transition: opacity 0.6s var(--hero-ease);
+  transition: opacity 0.35s var(--hero-ease);
 }
 @media (max-aspect-ratio: 4/5) {
   .hero-still { background-image: image-set(url('/hero/still-tall.webp') type('image/webp')); }
@@ -37,7 +37,7 @@
   /* vertical swipes scroll the page; the grass answers the pointer without taking the gesture */
   touch-action: pan-y;
   opacity: 0;
-  transition: opacity 0.6s var(--hero-ease);
+  transition: opacity 0.35s var(--hero-ease);
   cursor: default;
 }
 .hero.live .hero-canvas { opacity: 1; }

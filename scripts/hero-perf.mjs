@@ -1,0 +1,21 @@
+// Live portfolio hero frame timing: idle breeze, then while dragging. node scripts/hero-perf.mjs [W H DPR]
+import { chromium } from '@playwright/test';
+const [W = 1440, H = 900, DPR = 2] = process.argv.slice(2).map(Number);
+const b = await chromium.launch({ args: ['--use-angle=metal', '--enable-gpu'] });
+const p = await b.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: DPR });
+const t0 = Date.now();
+await p.goto(`${process.env.URL ?? 'http://localhost:5428/'}?scene=portfolio`);
+await p.waitForFunction(() => window.__wind && !window.__wind.store.get().loading, null, { timeout: 90000 });
+const ready = Date.now() - t0;
+const sample = (n) => p.evaluate((n) => new Promise((res) => { const ts = []; let last = performance.now(); const f = (t) => { ts.push(t - last); last = t; if (ts.length < n) requestAnimationFrame(f); else { ts.sort((a, b) => a - b); res({ median: +ts[ts.length >> 1].toFixed(2), p95: +ts[Math.floor(ts.length * 0.95)].toFixed(2) }); } }; requestAnimationFrame(f); }), n);
+await sample(30);
+const idle = await sample(240);
+await p.mouse.move(W * 0.45, H * 0.72);
+await p.mouse.down();
+const drag = p.evaluate(() => new Promise((res) => setTimeout(res, 10)));
+const sweep = (async () => { for (let i = 0; i < 60; i++) await p.mouse.move(W * (0.45 + 0.45 * Math.sin(i / 10)), H * (0.7 + 0.1 * Math.cos(i / 7))); })();
+const dragging = await sample(180);
+await sweep; await drag; await p.mouse.up();
+const info = await p.evaluate(() => ({ strands: window.__wind.app.grass?.count ?? null, dpr: devicePixelRatio, canvas: [window.__wind.app.canvas.width, window.__wind.app.canvas.height] }));
+console.log(JSON.stringify({ size: [W, H, DPR], readyMs: ready, idle, dragging, ...info }));
+await b.close();
