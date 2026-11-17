@@ -1,0 +1,28 @@
+/*
+ * The image-directed hero. Panel geometry from the approved reference at 1672 × 941: 478 × 422 at
+ * (102, 230), corner radius about 48. Type inside the panel is in container units, shared with hero.css.
+ */
+.hero.hybrid .hero-still,
+.hero.hybrid.fallback .hero-still {
+  /* the same crop as the renderer's: CSS cover positioning is (container − image) × focus, exactly coverFit */
+  background-image: url('/hybrid/clean-landscape.webp');
+  background-size: cover;
+  background-position: var(--focus-x, 50%) var(--focus-y, 50%);
+}
+.hero.hybrid .intro {
+  left: 6.1vw;
+  top: 24.4%;
+  width: clamp(320px, 28.6vw, 600px);
+  aspect-ratio: 478 / 422;
+  border-radius: clamp(28px, 10%, 64px);
+}
+.hero.hybrid .intro-body { padding: 9.3cqw 9.2cqw 8.8cqw; }
+@media (max-aspect-ratio: 4/5) {
+  .hero.hybrid .intro {
+    left: 50%;
+    top: auto;
+    bottom: max(5vh, calc(env(safe-area-inset-bottom) + 18px));
+    transform: translateX(-50%);
+    width: min(88vw, 420px);
+  }
+}

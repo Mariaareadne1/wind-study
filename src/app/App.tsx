@@ -4,6 +4,7 @@ import { loadStored, saveStored, tuningFromQuery } from '../state/tuning';
 import { Controls } from '../ui/Controls';
 import { WindApp } from './WindApp';
 import { HeroPage } from '../hero/HeroPage';
+import { HybridPage } from '../hybrid/HybridPage';
 import * as patterns from '../wind/patterns';
 import { profileFor } from '../scene/profiles';
 import { strandPoint, BEND_GLSL } from '../grass/bend';
@@ -43,7 +44,10 @@ function initialStore(): Store {
 
 /** The portfolio hero is its own page; every other version is the Wind Study stage. */
 export function App() {
-  return query().get('scene') === 'portfolio' ? <HeroPage /> : <Stage />;
+  const scene = query().get('scene');
+  if (scene === 'portfolio') return <HeroPage />;
+  if (scene === 'portfolio-hybrid') return <HybridPage />;
+  return <Stage />;
 }
 
 function Stage() {

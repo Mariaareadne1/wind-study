@@ -4,11 +4,11 @@ import { WindApp } from '../app/WindApp';
 import { PORTFOLIO } from '../scene/profiles';
 import { IntroPanel } from './IntroPanel';
 import { DEFAULT_CONTENT, type HeroContent } from './content';
+import { useGlassPanel } from './useGlassPanel';
 import './hero.css';
 
-/** The glass's optics in CSS pixels, at the reference size; they scale with the panel. */
-const GLASS_REFERENCE_WIDTH = 553;
-const GLASS = { radius: 68, bevel: 50, thickness: 34 };
+/** The glass's optics in CSS pixels at the reference panel width (553 at 1914 wide); they scale with the panel. */
+const GLASS = { referenceWidth: 553, radius: 68, bevel: 50, thickness: 34, maxRadius: 80 };
 
 type Props = {
   content?: HeroContent;
@@ -81,44 +81,7 @@ export function PortfolioHero({ content = DEFAULT_CONTENT, seed = 7, options = {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seed]);
 
-  // the glass follows the panel's box: on resize, on font load, whenever layout moves it
-  useEffect(() => {
-    const panel = panelRef.current;
-    const app = appRef.current;
-    if (phase !== 'live' || !app) return;
-    if (!panel || !showPanel) {
-      app.setGlass(null);
-      return;
-    }
-    const place = () => {
-      const r = panel.getBoundingClientRect();
-      const c = canvasRef.current!.getBoundingClientRect();
-      const k = r.width / GLASS_REFERENCE_WIDTH;
-      app.setGlass({ x: r.left - c.left, y: r.top - c.top, width: r.width, height: r.height, radius: Math.min(GLASS.radius * k, 80), bevel: GLASS.bevel * k, thickness: GLASS.thickness * k });
-    };
-    place();
-    const ro = new ResizeObserver(place);
-    ro.observe(panel);
-    window.addEventListener('resize', place);
-    void document.fonts?.ready.then(place);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener('resize', place);
-    };
-  }, [phase, showPanel]);
-
-  // the glass catches a faint highlight from the pointer, eased in and out
-  const glow = useRef({ x: 0, y: 0, target: 0, value: 0, raf: 0 });
-  const easeGlow = () => {
-    const g = glow.current;
-    g.value += (g.target - g.value) * 0.12;
-    appRef.current?.setGlassPointer(g.x, g.y, g.value);
-    g.raf = Math.abs(g.target - g.value) > 0.004 ? requestAnimationFrame(easeGlow) : 0;
-  };
-  const nudgeGlow = () => {
-    if (!glow.current.raf) glow.current.raf = requestAnimationFrame(easeGlow);
-  };
-  useEffect(() => () => cancelAnimationFrame(glow.current.raf), []);
+  const glassHandlers = useGlassPanel(appRef, panelRef, canvasRef, phase === 'live', showPanel, GLASS);
 
   return (
     <div className={`hero ${phase}`}>
@@ -129,15 +92,7 @@ export function PortfolioHero({ content = DEFAULT_CONTENT, seed = 7, options = {
           ref={panelRef}
           content={content}
           isLiveGlass={phase === 'live'}
-          onPointerMove={(x, y) => {
-            glow.current.x = x;
-            glow.current.y = y;
-            nudgeGlow();
-          }}
-          onPointerPresence={(inside) => {
-            glow.current.target = inside ? 1 : 0;
-            nudgeGlow();
-          }}
+          {...glassHandlers}
         />
       )}
     </div>

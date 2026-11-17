@@ -213,3 +213,48 @@ Add `bare` to see the land alone.
    still a little boxy.
 2. The target's glass has a slightly organic, liquid edge with bright blobs; ours is a clean rounded rectangle.
 3. The small white wildflowers at the lower left are not there.
+
+## Hybrid image-directed hero (`?scene=portfolio-hybrid`), branch `portfolio-hybrid` — started 2026-11-16
+
+Brief: `/Users/mariashowalter/Downloads/Wind_Hybrid_Claude_Prompt.md`. Stop rebuilding a synthetic landscape: show
+the approved picture and animate only its fine grass detail. The procedural hero (`?scene=portfolio`) stays on
+`sunlit` and here, untouched.
+
+### Assets
+- `design/reference/approved-hero-reference.png` (1672 × 941): the approved design, with panel and text baked in.
+  Reference only; never shown.
+- `design/reference/clean-landscape.png` (1672 × 941): a separately generated landscape with no panel. It is very close
+  to the approved image but **not pixel-identical**: a little brighter and more saturated, with small differences in
+  the grass.
+- `public/hybrid/clean-landscape.webp`: the plate as shipped, WebP quality 95, 545 KB, 47.4 dB PSNR against the PNG.
+- `public/hybrid/grass-mask.png`: authored by `scripts/hybrid-mask.mjs`, with a debug view in
+  `artifacts/hybrid-mask-debug.png`. It combines a colour key for bright, unsaturated pixels (clouds, flowers),
+  hand-placed feathered ellipses over each cloud and its rim, then dilation and a soft feather. About 80% of the
+  picture may move.
+- The prototype's `grass-detail.png` is not used: the detail is computed on the GPU from the plate's own mip levels,
+  so there is no second, lossy image.
+
+### Prototype audit
+- Its mask was a global green threshold, which the brief calls temporary.
+- An always-on sine wave shifted the detail everywhere, with no bevel or proper refraction in its glass.
+- It had its own CPU spring field. Kept from it: the idea of warping only the high-pass detail.
+
+### Architecture (`src/hybrid/`)
+- `plate.ts`: one full-screen pass with a cover fit around a focal point. Output is
+  `plate + mask × [highpass(p − shift) − highpass(p)]`, with `highpass = plate − mip level 2`. At zero wind it is
+  the plate. The shift fades out within a few pixels of the picture's edges.
+- `HybridApp.ts`: Wind Study's own `WindSim` (fixed 60 Hz, two-spring grass response, gusts, ambient breeze) mapped
+  onto the plate, with the plate spanning the field's width. `WindTextures` uploads the bend. Drag makes a full gust;
+  `HoverBreeze` makes the soft one. The same `Compositor` draws the glass over the result.
+- `HybridHero.tsx`, `HybridPage.tsx`, `hybrid.css`: the shared `IntroPanel` and `useGlassPanel`. The still and the
+  no-WebGL fallback are the same plate, placed by CSS `background-position` at the same focal point (identical to
+  `coverFit`).
+- Shared changes: the compositor gained `setGlassLook` (frost, milk, tint, haze) and `setVignette`. The portfolio
+  hero's look is unchanged (its defaults reproduce the earlier constants). `useGlassPanel` now serves both heroes.
+
+### Milestone 2: image-faithful still — done
+- At 1672 × 941, with zero wind and outside the panel, the render matches the plate to WebP precision: median 2, 99th
+  percentile 9, max 47 (scattered compression artifacts), 41.3 dB (`node scripts/plate-diff.mjs render.png`).
+- Composition against the approved image: `docs/media/hybrid/m2-still-vs-approved.jpg`.
+- Visible differences: the plate is a little brighter and more saturated than the approved image, and our glass is
+  darker and clearer than the reference's lighter, frosted panel.

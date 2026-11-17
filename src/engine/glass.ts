@@ -14,6 +14,7 @@ export const GLASS_GLSL = /* glsl */ `
 uniform vec4 uGlass;      // centre x, y and half width, height
 uniform vec4 uGlassShape; // corner radius, bevel width, thickness, on (1) / off (0)
 uniform vec4 uGlassPtr;   // pointer x, y, and how present it is (0..1)
+uniform vec4 uGlassLook;  // frost radius (CSS px), milky rim, smoky tint, face haze
 
 struct GlassHit {
   float inside; // coverage, antialiased at the hairline
@@ -71,7 +72,7 @@ vec3 glassScene(GlassHit g) {
   float om = 1.0 - g.t;
   // a calm, softly blurred body; the thick rim scatters a little more
   // heavily frosted, like the reference: no single blade survives, only the land's light and shade
-  float frost = mix(30.0, 36.0, om) * uDpr;
+  float frost = mix(uGlassLook.x, uGlassLook.x * 1.2, om) * uDpr;
   float ab = 0.55 * om;
   // a per-pixel rotation of the sample spiral trades banding for fine grain the paper finish hides
   float spin = fract(sin(dot(fc, vec2(12.9898, 78.233))) * 43758.5453) * 6.2831;
@@ -102,17 +103,17 @@ vec3 glassFinish(vec3 c, GlassHit g, vec2 fc) {
   if (g.inside <= 0.0) return outside;
 
   // smoky green body: the slab absorbs a little and leans toward the land's own green
-  vec3 body = mix(c, c * vec3(0.84, 0.94, 0.82), 0.55) * 0.9;
+  vec3 body = mix(c, c * vec3(0.84, 0.94, 0.82), uGlassLook.z) * mix(1.0, 0.9, uGlassLook.z / 0.55);
   // the face catches the sky from the upper left: milky at the top, clearer below
   float lift = smoothstep(-h.y * 0.6, h.y, g.local.y + g.local.x * -0.25);
-  body = screenBlend(body, vec3(0.92, 0.96, 0.88) * (0.08 + 0.14 * lift));
+  body = screenBlend(body, vec3(0.92, 0.96, 0.88) * uGlassLook.w * (0.36 + 0.64 * lift));
 
   // the thick wall scatters light: a milky band round the rim, brightest toward the light
   vec3 Lm = normalize(vec3(-0.5, 0.62, 0.62));
   float facingM = dot(g.outward, normalize(Lm.xy));
   float band = 1.0 - smoothstep(0.0, 0.5, g.t);
   float litM = 0.35 + 0.65 * pow(facingM * 0.5 + 0.5, 1.4);
-  body = screenBlend(body, vec3(0.95, 0.98, 0.92) * band * band * litM * 0.42);
+  body = screenBlend(body, vec3(0.95, 0.98, 0.92) * band * band * litM * uGlassLook.y);
 
   vec3 L = normalize(vec3(-0.5, 0.62, 0.62));
   vec2 Ld = normalize(L.xy);

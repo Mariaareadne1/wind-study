@@ -18,6 +18,8 @@ import { makeNoise } from '../scene/noise';
 import { GLASS_GLSL } from './glass';
 
 const SAMPLES = 4;
+/** Frost radius (CSS px), milky rim, smoky tint, face haze: the portfolio hero's glass. */
+export const DEFAULT_GLASS_LOOK = [30, 0.42, 0.55, 0.22] as const;
 const PAPER_SIZE = 256;
 
 /** A small tiling sheet of paper: fine tooth in red, soft mottling in green. Baked once. */
@@ -73,7 +75,7 @@ export class Compositor {
       glslVersion: GLSL3,
       depthTest: false,
       depthWrite: false,
-      uniforms: { uScene: { value: this.target.texture }, uPixel: { value: [1 / 4, 1 / 4] }, uDpr: { value: 1 }, uPaper: { value: makePaper() }, uMat: { value: 0 }, uSize: { value: [4, 4] }, uLift: { value: 1 }, uGrain: { value: 1 }, uSat: { value: 1 }, uSoft: { value: 1 }, uExposure: { value: 0 }, uGlass: { value: [0, 0, 0, 0] }, uGlassShape: { value: [0, 0, 0, 0] }, uGlassPtr: { value: [0, 0, 0, 0] } },
+      uniforms: { uScene: { value: this.target.texture }, uPixel: { value: [1 / 4, 1 / 4] }, uDpr: { value: 1 }, uPaper: { value: makePaper() }, uMat: { value: 0 }, uSize: { value: [4, 4] }, uLift: { value: 1 }, uGrain: { value: 1 }, uSat: { value: 1 }, uSoft: { value: 1 }, uExposure: { value: 0 }, uGlass: { value: [0, 0, 0, 0] }, uGlassShape: { value: [0, 0, 0, 0] }, uGlassPtr: { value: [0, 0, 0, 0] }, uGlassLook: { value: [...DEFAULT_GLASS_LOOK] }, uVignette: { value: 1 } },
       vertexShader: /* glsl */ `
         in vec3 position;
         out vec2 vUv;
@@ -93,6 +95,7 @@ export class Compositor {
         uniform float uSat;
         uniform float uSoft;
         uniform float uExposure; // 0: the scene is already display colour; above 0: linear light, filmic tonemap
+        uniform float uVignette; // 1: the faint corner falloff; 0: none
         vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
         ${GLASS_GLSL}
         // the faintest softening: fibres should feel soft, never crunchy
@@ -120,7 +123,7 @@ export class Compositor {
           float lum = dot(c, vec3(0.3, 0.59, 0.11));
           c = mix(vec3(lum), c, uSat);
           vec2 q = vUv - 0.5;
-          c *= 1.0 - dot(q, q) * 0.11;
+          c *= 1.0 - dot(q, q) * 0.11 * uVignette;
           if (uMat > 0.0) {
             // a loaded brush stopping short of the paper's edge: slow wander plus dry, feathered bristle
             vec2 p = gl_FragCoord.xy;
@@ -179,6 +182,16 @@ export class Compositor {
     // the shader works y-up, from the canvas's bottom left
     u.uGlass.value = [g.x + g.width / 2, h - (g.y + g.height / 2), g.width / 2, g.height / 2];
     u.uGlassShape.value = [g.radius, g.bevel, g.thickness, 1];
+  }
+
+  /** How the glass looks: frost radius in CSS px, milky rim, smoky tint and face haze (see DEFAULT_GLASS_LOOK). */
+  setGlassLook(look: readonly [number, number, number, number]): void {
+    this.material.uniforms.uGlassLook.value = [...look];
+  }
+
+  /** 0 turns off the faint corner falloff, for a photographic plate that must stay as it is. */
+  setVignette(amount: number): void {
+    this.material.uniforms.uVignette.value = amount;
   }
 
   /** Pointer over the glass, in device pixels from the top left, and how present it is (0..1). */
