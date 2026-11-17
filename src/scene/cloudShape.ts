@@ -21,10 +21,13 @@ export interface Lump {
   r: number;
 }
 
+/** How much narrower a cumulus is at its crown than at its base. */
+export const TAPER = 0.3;
+
 /** The shader holds this many lumps per cloud. */
 export const MAX_LUMPS = 64;
 /** Sharpness of the smooth union between lumps: the shader uses the same. */
-const BLEND = 8;
+const BLEND = 10;
 
 /**
  * A cumulus as a handful of overlapping masses: a broad flattened base,
@@ -35,7 +38,7 @@ export function buildLumps(c: CloudSpec): Lump[] {
   const rng = makeRng(c.seed);
   const lumps: Lump[] = [];
   const hw = c.width * 0.5;
-  const tower = (rng() - 0.5) * 0.5; // where the crown leans, as a fraction of the half-width
+  const tower = 0.12 + rng() * 0.22 * (rng() < 0.5 ? -1 : 1); // where the crown leans, as a fraction of the half-width
   const dome = domeOf(c);
   // cauliflower: rounded heads budding all over the core's surface, bigger toward the crown,
   // some sunk deep and some standing proud, so the outline is a run of billows
@@ -46,32 +49,47 @@ export function buildLumps(c: CloudSpec): Lump[] {
     const el = Math.asin(up) * (0.15 + 0.85 * rng());
     const ce = Math.cos(el);
     const crown = Math.sin(el);
-    const sink = 0.5 + 0.4 * rng();
-    const r = c.width * (0.065 + 0.06 * rng()) * (0.6 + 0.95 * crown * (1 - Math.abs(Math.cos(a) * ce) * 0.5));
+    // heads ride the dome's surface, so the outline follows the dome instead of sagging between them
+    const sink = 0.72 + 0.2 * rng();
+    const r = c.width * (0.06 + 0.05 * rng()) * (0.7 + 0.75 * crown);
     lumps.push({
-      x: dome.c[0] + Math.cos(a) * ce * dome.r[0] * sink + tower * hw * crown,
+      x: dome.c[0] + Math.cos(a) * ce * dome.r[0] * sink * (1 - TAPER * crown) + tower * hw * crown * 0.4,
       y: dome.c[1] + crown * dome.r[1] * sink + r * 0.45,
-      z: dome.c[2] + Math.sin(a) * ce * dome.r[2] * sink,
+      z: dome.c[2] + Math.sin(a) * ce * dome.r[2] * sink * (1 - TAPER * crown),
       r,
     });
+  }
+  // the crown: a few big heads piled up off-centre, the part of the cloud still climbing
+  const crowns = 4;
+  for (let i = 0; i < crowns; i++) {
+    const r = c.width * (0.1 + 0.035 * rng());
+    lumps[i] = {
+      x: dome.c[0] + (tower + (rng() - 0.5) * 0.35) * hw,
+      y: dome.c[1] + dome.r[1] * (0.62 + 0.15 * rng()),
+      z: dome.c[2] + (rng() - 0.5) * dome.r[2] * 0.5,
+      r,
+    };
   }
   return lumps.slice(0, MAX_LUMPS);
 }
 
-/** The cloud's world-space box, padded for the eroded rim. */
+/** The cloud's world-space box: everything the raymarch could find density in. */
 export function cloudBox(c: CloudSpec, lumps: readonly Lump[]): { min: [number, number, number]; max: [number, number, number] } {
   const min: [number, number, number] = [Infinity, c.y, Infinity];
   const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
-  for (const l of lumps) {
-    min[0] = Math.min(min[0], l.x - l.r);
-    min[2] = Math.min(min[2], l.z - l.r);
-    max[0] = Math.max(max[0], l.x + l.r);
-    max[1] = Math.max(max[1], l.y + l.r);
-    max[2] = Math.max(max[2], l.z + l.r);
-  }
-  // the smooth union swells a little past each lump: leave room so nothing is clipped flat
-  const px = (max[0] - min[0]) * 0.12, pz = (max[2] - min[2]) * 0.12;
-  return { min: [min[0] - px, min[1], min[2] - pz], max: [max[0] + px, max[1] + (max[1] - min[1]) * 0.15, max[2] + pz] };
+  // the smooth union of many overlapping parts swells past each one, by up to log(n)/BLEND of its radius
+  const swell = 1 + Math.log(lumps.length + 1) / BLEND;
+  const dome = domeOf(c);
+  const reach = (x: number, y: number, z: number, rx: number, ry: number, rz: number): void => {
+    min[0] = Math.min(min[0], x - rx * swell);
+    min[2] = Math.min(min[2], z - rz * swell);
+    max[0] = Math.max(max[0], x + rx * swell);
+    max[1] = Math.max(max[1], y + ry * swell);
+    max[2] = Math.max(max[2], z + rz * swell);
+  };
+  reach(dome.c[0], dome.c[1], dome.c[2], dome.r[0], dome.r[1], dome.r[2]);
+  for (const l of lumps) reach(l.x, l.y, l.z, l.r, l.r, l.r);
+  return { min, max };
 }
 
 /** The half-ellipsoid every cumulus is built on: flat base, rounded crown. Centre of its base, and radii. */
@@ -82,7 +100,8 @@ export function domeOf(c: CloudSpec): { c: [number, number, number]; r: [number,
 /** How far into the cloud's soft mass a point is: 0 outside, toward 1 at its core. Matches the shader. */
 export function lumpField(lumps: readonly Lump[], spec: CloudSpec, x: number, y: number, z: number): number {
   const dome = domeOf(spec);
-  let sum = Math.exp(BLEND * (1 - Math.hypot((x - dome.c[0]) / dome.r[0], (y - dome.c[1]) / dome.r[1], (z - dome.c[2]) / dome.r[2])));
+  const narrow = 1 - TAPER * Math.min(1, Math.max(0, (y - dome.c[1]) / dome.r[1]));
+  let sum = Math.exp(BLEND * (1 - Math.hypot((x - dome.c[0]) / (dome.r[0] * narrow), (y - dome.c[1]) / dome.r[1], (z - dome.c[2]) / (dome.r[2] * narrow))));
   for (const l of lumps) sum += Math.exp(BLEND * (1 - Math.hypot(x - l.x, y - l.y, z - l.z) / l.r));
   const s = Math.max(Math.log(Math.max(sum, 1e-6)) / BLEND, 0);
   // flat-bottomed, as cumulus are: the base is the condensation level

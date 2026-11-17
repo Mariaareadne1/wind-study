@@ -147,7 +147,8 @@ void main() {
   float canopy = pow(max(dot(nT, L), 0.0), 1.4) * 0.8 + fibre * 0.2;
   float self = mix(0.18, 1.0, ao);
   vec3 direct = sunCol * canopy * tl.g * sunVis * self * mix(0.8, 1.15, facing - 0.4);
-  vec3 ambient = skyCol * tl.r * tl.r * mix(0.22, 1.0, ao);
+  // a cloud overhead also hides part of the sky, which is what makes its shadow read in shade too
+  vec3 ambient = skyCol * tl.r * tl.r * mix(0.22, 1.0, ao) * (1.0 - 0.45 * (1.0 - sunVis));
   vec3 lin = albedo * (direct + ambient);
   // restrained fibre highlights and a little light through backlit tips
   lin += sunCol * (pow(sinTH, 160.0) * 0.16 + pow(sinTH, 24.0) * 0.045) * tl.g * sunVis * t * t;

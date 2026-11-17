@@ -66,8 +66,15 @@ which renders `?compare&scene=sunlit` at the reference's exact 842×1582 frame. 
 - Tests: 63 unit (3 new for cloud shape and shadows), 51 e2e (the Sunlit test now checks three clouds render white).
 - 60 fps held at 2880×1800 with clouds on (16.7 ms median, vsync-limited, load about 14).
 - Comparison: `docs/media/sunlit-rebuild/30-clouds-vs.jpg`, `30-cloud-close-vs.jpg`.
-- Still open: the big cloud's shadow falls on a dark wave front, so it barely reads, and the target's shadows are
-  darker and crisper than ours.
+- Refinement pass: the core is now a dome that narrows toward its crown (`TAPER`), with heads riding its surface and
+  a few big crown heads piled off-centre, so the outline rises to a crown instead of sagging between lobes. The clouds
+  are wider and lower, closer to the photograph's proportions. Fine noise is halved and the body is denser, so the
+  interior reads as billows rather than smoke. They are modelled from nearly overhead (`cloudKey`).
+- The cloud box now allows for the smooth union swelling past its parts, so nothing can be clipped flat.
+- A cloud overhead also hides part of the sky, so grass and ground under a shadow lose some ambient light too. The big
+  cloud's shadow now reads even on the dark wave front.
+- Comparison: `docs/media/sunlit-rebuild/31-clouds-vs.jpg`, `31-cloud-close-vs.jpg`.
+- Still open: the target's rims are softer and more feathered than ours.
 
 ### Visual issues still open
 - Up close our blades are crisper and more brushed than the target's soft, slightly blurred grass.

@@ -67,7 +67,8 @@ export function buildGround(
         float clouds = texture(uFlow, (vXZ - uFieldRect.xy) * uFieldRect.zw).a;
         vec3 albedo = pow(c, vec3(2.2));
         float ndl = max(dot(n, uSun3), 0.0);
-        vec3 lit = uSunColor * ndl * tl.g * (1.0 - clouds) + uSkyColor * tl.r;
+        // a cloud overhead also hides part of the sky
+        vec3 lit = uSunColor * ndl * tl.g * (1.0 - clouds) + uSkyColor * tl.r * (1.0 - 0.45 * clouds);
         outColor = vec4(applyHaze(albedo * lit, vDist, uHaze, uHazeRange), 1.0);
         return;
 #endif

@@ -21,7 +21,7 @@ import {
   type PerspectiveCamera,
   type WebGLRenderer,
 } from 'three';
-import { buildLumps, cloudBox, domeOf, MAX_LUMPS, type CloudSpec, type Lump } from './cloudShape';
+import { buildLumps, cloudBox, domeOf, MAX_LUMPS, TAPER, type CloudSpec, type Lump } from './cloudShape';
 
 export type { CloudSpec } from './cloudShape';
 
@@ -80,12 +80,14 @@ float billow(vec3 p) {
   for (int i = 0; i < 5; i++) { s += a * (1.0 - abs(noise3(p) * 2.0 - 1.0)); p = p * 2.07 + vec3(3.1, 1.7, 5.3); a *= 0.55; }
   return s / 1.0;
 }
-const float BLEND = 8.0;
+const float BLEND = 10.0;
 const float SUN_GAIN = 0.7;
-const float AMB_GAIN = 0.32;
+const float AMB_GAIN = 0.42;
 float shape(vec3 p) {
   // a smooth union, so the masses merge into one body instead of reading as balls
-  float sum = exp(BLEND * (1.0 - length((p - uDomeC) / uDomeR)));
+  vec3 dd = p - uDomeC;
+  float narrow = 1.0 - ${TAPER} * clamp(dd.y / uDomeR.y, 0.0, 1.0);
+  float sum = exp(BLEND * (1.0 - length(dd / (uDomeR * vec3(narrow, 1.0, narrow)))));
   for (int i = 0; i < ${MAX_LUMPS}; i++) {
     if (i >= uCount) break;
     vec4 l = uLumps[i];
@@ -104,10 +106,11 @@ float density(vec3 p, bool fine) {
   // erode the masses, harder near their rim and less on the flat base
   float hf = clamp((p.y - uBoxMin.y) / (uBoxMax.y - uBoxMin.y), 0.0, 1.0);
   // billows bite into the upper surface; the flat base is cut cleaner, and wispier
-  float e = (billow(q) - 0.5) * 0.4 * mix(0.4, 1.0, smoothstep(0.0, 0.3, hf));
-  if (fine) e += (billow(q * 3.1) - 0.5) * 0.09;
+  float e = (billow(q) - 0.5) * 0.5 * mix(0.4, 1.0, smoothstep(0.0, 0.3, hf));
+  if (fine) e += (billow(q * 2.6) - 0.5) * 0.05;
   float d = s - e - 0.12;
-  return clamp(d * 3.5, 0.0, 1.0);
+  // dense body, with a thin feathered fringe where the billows thin out into air
+  return clamp(d * 5.0, 0.0, 1.0) * 0.85 + smoothstep(-0.06, 0.12, d) * 0.15;
 }
 vec2 box(vec3 ro, vec3 rd) {
   // never exactly axis-aligned, so no 0 × inf at a face
@@ -148,7 +151,7 @@ void main() {
     for (int o = 0; o < 3; o++) {
       float ph = mix(hg(cosT, 0.35 * c), hg(cosT, -0.2 * c), 0.3) * 4.0 * 3.14159;
       sunL += a * ph * exp(-SIGMA * b * od);
-      a *= 0.45; b *= 0.5; c *= 0.5;
+      a *= 0.55; b *= 0.4; c *= 0.5;
     }
     // a little darker just inside the surface facing away: the "powder" of dense cloud
     float powder = 1.0 - exp(-SIGMA * 2.0 * d * 0.25);

@@ -144,15 +144,15 @@ export const SUNLIT: SceneProfile = {
   long: { length: 6.5, width: 0.48, troughs: 0.86, silver: 0.12 },
   // three low cumulus in the photograph's layout, read in a tall frame: big upper left, medium right, small lower left
   clouds: [
-    { x: -2.6, y: 8.7, z: -0.8, width: 12.8, depth: 4.6, height: 4.8, seed: 11 },
-    { x: 3.6, y: 5.7, z: 5.6, width: 7.6, depth: 3.4, height: 3.6, seed: 23 },
-    { x: -3.5, y: 3.8, z: 10, width: 4.3, depth: 2.2, height: 2.3, seed: 37 },
+    { x: -2.6, y: 8.7, z: -0.8, width: 13.2, depth: 4.4, height: 5.2, seed: 11 },
+    { x: 3.6, y: 5.7, z: 5.6, width: 7.8, depth: 3.2, height: 3.8, seed: 23 },
+    { x: -3.5, y: 3.8, z: 10, width: 4.2, depth: 2, height: 2.7, seed: 37 },
   ],
   flowers: { flowers: 0, seedHeads: 0 },
   motion: { breeze: 0.4, flutter: 0.35 },
   // higher than the land's sun, so each cloud's shadow falls close under it, as in the photograph
   cloudSun: normalize([0.22, 0.9, -0.36]),
-  cloudKey: normalize([0.55, 0.75, -0.25]),
+  cloudKey: normalize([-0.15, 0.95, -0.2]),
   baseline: sunlitClimb,
 };
 
