@@ -12,7 +12,7 @@ const dir = mkdtempSync('artifacts/film-');
 const b = await chromium.launch({ args: ['--use-angle=metal', '--enable-gpu'] });
 const ctx = await b.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1, recordVideo: { dir, size: { width: W, height: H } } });
 const p = await ctx.newPage();
-await p.goto(`${process.env.URL ?? 'http://localhost:5428/'}?scene=portfolio-hybrid&dpr=1&${process.env.EXTRA ?? ""}`);
+await p.goto(`${process.env.URL ?? 'http://localhost:5428/'}?scene=${process.env.SCENE ?? "portfolio-hybrid"}&dpr=1&${process.env.EXTRA ?? ""}`);
 await p.waitForFunction(() => window.__wind, null, { timeout: 60000 });
 await p.waitForTimeout(1500);
 const t0 = Date.now();

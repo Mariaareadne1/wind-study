@@ -67,8 +67,9 @@ const out = await p.evaluate(
       const gg = src[i * 4 + 1] / 255 - Math.max(src[i * 4] / 255, src[i * 4 + 2] / 255);
       notGreen[i] = gg < 0.05 ? 1 : 0;
     }
-    const grown = blurField(alpha.map((v, i) => (v > 0.015 || notGreen[i] ? 1 : 0)), W, H, 3, 2);
-    const hole = grown.map((v) => smooth(0.02, 0.25, v));
+    const grown = blurField(alpha.map((v, i) => (v > 0.015 || notGreen[i] ? 1 : 0)), W, H, 8, 2);
+    // a wide feather: seen through a drifting cloud's translucent base, a narrow switch from real grass to fill reads as a line
+    const hole = grown.map((v) => smooth(0.04, 0.6, v));
     // 3. fill. A cloud only drifts a few dozen pixels, so only a thin rim of each hole is ever uncovered. Each hole
     //    pixel takes the real grass mirrored across the hole's edge (its nearest known pixel q, reflected: 2q − p),
     //    which keeps the texture and the local tone continuous right at the boundary; deeper in, never seen, a smooth

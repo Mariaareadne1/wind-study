@@ -392,8 +392,25 @@ untouched.
   - `docs/media/living/ambient-realtime.mp4`;
   - `ambient-foreground-zoom.mp4`;
   - `ambient-timelapse-15x.mp4` (80 s of scene time, to judge the clouds and shadows);
-  - `layers-debug.png`.
+  - `layers-debug.jpg`.
 - **Honest read:** the picture is preserved and nothing warps. The grass life is light passing through the field, which
   is how wind looks on a real field from this distance, not blades whipping. Cloud drift is very slow by design;
   only the time-lapse makes it obvious. Remaining blemishes: when a cloud is at its furthest drift, a couple of small
   smudges show at its base.
+
+### Milestones 4–7: glass, pointer wind, responsive, delivery
+- **Glass:** the shared compositor refracts this scene behind the panel, exactly as in the hybrid. Desktop and phone
+  stills: `docs/media/living/final-desktop.jpg`, `final-phone.jpg`; against the approved image:
+  `final-vs-approved.jpg`.
+- **Pointer wind:**
+  - Hovering or dragging drives Wind Study's gust simulation, and its grass bend becomes local gust light.
+  - Over the panel nothing stirs; a drag's light stays in its path and fades as the springs settle.
+  - Evidence: `drag-before-during-settling.png`, `pointer-interaction.mp4`, `pointer-interaction-zoom.mp4`.
+- **Phone fix:** after a drift, the edge of a cloud's filled hole showed as a dark wavy line through its translucent base
+  (magnified about 1.8× on a phone). The hole's feather was widened from about 6 px to 16 px, and the line is gone.
+- **Reduced motion:** the scene clock stops (no drift, no gust light) and hovering makes no wind; a drag still answers.
+  **No WebGL:** the plate shows as a still, with the frosted panel.
+- **Frame time:** steady 60 fps at 1672 × 941 at 2× and on a phone at 3×. Ready in about 0.85 s.
+- **Tests:** `tests/e2e/living.spec.ts`, 7 tests. Full run: 63 unit and 75 browser tests, the build, and the living tests
+  on the production build all pass.
+- **Handoff:** `docs/LIVING_HERO.md`.

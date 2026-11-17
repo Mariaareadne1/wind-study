@@ -7,7 +7,7 @@ import type { WindApp } from '../app/WindApp';
 /**
  * The living hero as a standalone page (?scene=portfolio-living). Switches:
  *   compare       no animation loop, no panel (add `panel` to include it); step it from tests
- *   interactive   pointer wind on the grass (off while the ambient scene is judged on its own)
+ *   still         no pointer wind: the scene lives on its own
  *   life=1.5      how strongly the wind shows in the grass (0–3, default 1)
  *   dpr           fixed device pixel ratio
  */
@@ -24,7 +24,7 @@ export function LivingPage() {
     <div className="hero-page">
       <LivingHero
         content={contentFromQuery(q)}
-        options={{ compare, showPanel: compare ? q.has('panel') : true, dpr: Number(q.get('dpr')) || undefined, interactive: q.has('interactive'), life: q.has('life') ? Math.min(3, Math.max(0, Number(q.get('life')) || 0)) : undefined }}
+        options={{ compare, showPanel: compare ? q.has('panel') : true, dpr: Number(q.get('dpr')) || undefined, interactive: !q.has('still'), life: q.has('life') ? Math.min(3, Math.max(0, Number(q.get('life')) || 0)) : undefined }}
         onReady={(app) => {
           const store = new Store();
           store.set({ loading: false });
