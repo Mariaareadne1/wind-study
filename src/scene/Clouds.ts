@@ -21,7 +21,7 @@ import {
   type PerspectiveCamera,
   type WebGLRenderer,
 } from 'three';
-import { buildLumps, cloudBox, domeOf, MAX_LUMPS, TAPER, type CloudSpec, type Lump } from './cloudShape';
+import { buildLumps, cloudBox, domeOf, MAX_LUMPS, taperOf, type CloudSpec, type Lump } from './cloudShape';
 
 export type { CloudSpec } from './cloudShape';
 
@@ -33,6 +33,20 @@ export interface CloudLight {
   skyColor: readonly [number, number, number];
   /** Light thrown up off the sunlit grass onto the undersides. */
   groundColor: readonly [number, number, number];
+}
+
+/** How a scene's clouds are drawn. Defaults are the Sunlit look. */
+export interface CloudStyle {
+  /** Multiplies all the light on the clouds. */
+  gain?: number;
+  /** How quickly density rises inside the rim: lower is softer, more feathered. */
+  edge?: number;
+  /** Fine erosion along the rim: higher frays it into wisps. */
+  fray?: number;
+  /** Billows per cloud width: sizes the erosion to each cloud, rather than in world units (1.25 per unit). */
+  billows?: number;
+  /** Multiplies the sky and ground fill: lower keeps grey in the creases. */
+  ambient?: number;
 }
 
 /** Longest side of one cloud's baked image, in pixels: they are soft, so this is plenty. */
@@ -83,10 +97,16 @@ float billow(vec3 p) {
 const float BLEND = 10.0;
 const float SUN_GAIN = 0.7;
 const float AMB_GAIN = 0.42;
+uniform float uGain;
+uniform float uEdge;
+uniform float uFray;
+uniform float uNoiseScale;
+uniform float uTaper;
+uniform float uAmbient;
 float shape(vec3 p) {
   // a smooth union, so the masses merge into one body instead of reading as balls
   vec3 dd = p - uDomeC;
-  float narrow = 1.0 - ${TAPER} * clamp(dd.y / uDomeR.y, 0.0, 1.0);
+  float narrow = 1.0 - uTaper * clamp(dd.y / uDomeR.y, 0.0, 1.0);
   float sum = exp(BLEND * (1.0 - length(dd / (uDomeR * vec3(narrow, 1.0, narrow)))));
   for (int i = 0; i < ${MAX_LUMPS}; i++) {
     if (i >= uCount) break;
@@ -100,17 +120,17 @@ float shape(vec3 p) {
 float density(vec3 p, bool fine) {
   float s = shape(p);
   if (s <= 0.0) return 0.0;
-  vec3 q = p * 1.25 + uSeed;
+  vec3 q = p * uNoiseScale + uSeed;
   // a slow warp, so billows sprawl and lean instead of sitting on a grid of bumps
   q += vec3(noise3(p * 0.35 + 7.0), noise3(p * 0.35 + 19.0), noise3(p * 0.35 + 31.0)) * 1.6 - 0.8;
   // erode the masses, harder near their rim and less on the flat base
   float hf = clamp((p.y - uBoxMin.y) / (uBoxMax.y - uBoxMin.y), 0.0, 1.0);
   // billows bite into the upper surface; the flat base is cut cleaner, and wispier
   float e = (billow(q) - 0.5) * 0.5 * mix(0.4, 1.0, smoothstep(0.0, 0.3, hf));
-  if (fine) e += (billow(q * 2.6) - 0.5) * 0.05;
+  if (fine) e += (billow(q * 2.6) - 0.5) * uFray;
   float d = s - e - 0.12;
   // dense body, with a thin feathered fringe where the billows thin out into air
-  return clamp(d * 5.0, 0.0, 1.0) * 0.85 + smoothstep(-0.06, 0.12, d) * 0.15;
+  return clamp(d * uEdge, 0.0, 1.0) * 0.85 + smoothstep(-0.06, 0.12, d) * 0.15;
 }
 vec2 box(vec3 ro, vec3 rd) {
   // never exactly axis-aligned, so no 0 × inf at a face
@@ -157,7 +177,7 @@ void main() {
     float powder = 1.0 - exp(-SIGMA * 2.0 * d * 0.25);
     float hf = clamp((p.y - uBoxMin.y) / extent, 0.0, 1.0);
     vec3 amb = mix(uGroundColor, uSkyColor * vec3(1.2, 1.3, 1.5), smoothstep(0.0, 0.9, hf)) * mix(0.5, 1.0, hf);
-    vec3 S = uSunColor * sunL * SUN_GAIN * mix(0.45, 1.0, powder) + amb * AMB_GAIN;
+    vec3 S = (uSunColor * sunL * SUN_GAIN * mix(0.45, 1.0, powder) + amb * AMB_GAIN * uAmbient) * uGain;
     float ext = SIGMA * d;
     float tr = exp(-ext * dt);
     col += T * S * (1.0 - tr);
@@ -215,8 +235,10 @@ export class Clouds {
   private readonly bakeMaterial: ShaderMaterial;
   private readonly bakeScene = new Scene();
   private readonly bakeCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  private readonly billows: number | undefined;
 
-  constructor(specs: readonly CloudSpec[], light: CloudLight, offset: { value: Vector3 }) {
+  constructor(specs: readonly CloudSpec[], light: CloudLight, offset: { value: Vector3 }, style: CloudStyle = {}) {
+    this.billows = style.billows;
     this.geometry.setAttribute('position', new Float32BufferAttribute([0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0], 3));
     this.bakeMaterial = new ShaderMaterial({
       glslVersion: '300 es' as never,
@@ -237,6 +259,12 @@ export class Clouds {
         uSkyColor: { value: new Vector3(...light.skyColor) },
         uGroundColor: { value: new Vector3(...light.groundColor) },
         uSeed: { value: 0 },
+        uGain: { value: style.gain ?? 1 },
+        uEdge: { value: style.edge ?? 5 },
+        uFray: { value: style.fray ?? 0.05 },
+        uNoiseScale: { value: 1.25 },
+        uTaper: { value: 0.3 },
+        uAmbient: { value: style.ambient ?? 1 },
         uDomeC: { value: new Vector3() },
         uDomeR: { value: new Vector3(1, 1, 1) },
       },
@@ -295,6 +323,8 @@ export class Clouds {
       u.uBoxMax.value.set(...c.box.max);
       u.uRect.value.copy(rect);
       u.uSeed.value = (c.spec.seed % 97) * 0.37;
+      u.uTaper.value = taperOf(c.spec);
+      u.uNoiseScale.value = this.billows ? this.billows / c.spec.width : 1.25;
       const dome = domeOf(c.spec);
       u.uDomeC.value.set(...dome.c);
       u.uDomeR.value.set(...dome.r);

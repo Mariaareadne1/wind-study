@@ -140,8 +140,18 @@ Add `bare` to see the land alone.
 - **liquidGL (MIT):** uses a DOM rasteriser for the backdrop. Not needed, since our backdrop is already a GPU texture.
 - **volumetric-clouds (MIT):** weaker lighting than ours. Only its flat-bottom/tall-top idea is relevant.
 
+### Clouds (milestone 4, first pass)
+- Three clouds placed by projecting the target's screen positions onto the land (1914 × 1048). Sizes and positions
+  are now within a few percent of the target.
+- New per-scene cloud style (`CloudStyle`: gain, ambient, edge, fray, billows) and per-cloud `taper` and `core`.
+  Sunlit's defaults are unchanged.
+- Billow noise is sized to each cloud (`billows` per width), not in world units. In world units the wide portfolio
+  clouds read as fur.
+- The light on these clouds sat far past the tonemapper's white, so they were flat white. A gain of 0.42 lets the heads
+  model. They are lit from the upper left (`cloudKey`), as in the target.
+
 ### Remaining visual differences (largest first)
-1. No clouds yet in this scene.
+1. Clouds are still a little woolly and boxy next to the target's crisp cauliflower heads and wispy tails.
 2. The grass is less voluminous and less curved than the target's locks, and its highlights are weaker.
 3. A thin dark line on one crest at the right (a back face seen edge-on).
 4. No glass panel or text yet.

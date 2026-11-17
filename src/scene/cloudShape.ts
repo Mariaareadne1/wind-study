@@ -11,6 +11,10 @@ export interface CloudSpec {
   depth: number;
   height: number;
   seed: number;
+  /** How much narrower the crown is than the base (default TAPER): wide clouds taper more, into low tails. */
+  taper?: number;
+  /** Size of the smooth core relative to the cloud (default 1): smaller lets its billows stand proud. */
+  core?: number;
 }
 
 /** One rounded mass of the cloud's body: the raymarch erodes these with noise. */
@@ -23,6 +27,10 @@ export interface Lump {
 
 /** How much narrower a cumulus is at its crown than at its base. */
 export const TAPER = 0.3;
+
+export function taperOf(c: CloudSpec): number {
+  return c.taper ?? TAPER;
+}
 
 /** The shader holds this many lumps per cloud. */
 export const MAX_LUMPS = 64;
@@ -53,9 +61,9 @@ export function buildLumps(c: CloudSpec): Lump[] {
     const sink = 0.72 + 0.2 * rng();
     const r = c.width * (0.06 + 0.05 * rng()) * (0.7 + 0.75 * crown);
     lumps.push({
-      x: dome.c[0] + Math.cos(a) * ce * dome.r[0] * sink * (1 - TAPER * crown) + tower * hw * crown * 0.4,
+      x: dome.c[0] + Math.cos(a) * ce * dome.r[0] * sink * (1 - taperOf(c) * crown) + tower * hw * crown * 0.4,
       y: dome.c[1] + crown * dome.r[1] * sink + r * 0.45,
-      z: dome.c[2] + Math.sin(a) * ce * dome.r[2] * sink * (1 - TAPER * crown),
+      z: dome.c[2] + Math.sin(a) * ce * dome.r[2] * sink * (1 - taperOf(c) * crown),
       r,
     });
   }
@@ -94,13 +102,14 @@ export function cloudBox(c: CloudSpec, lumps: readonly Lump[]): { min: [number, 
 
 /** The half-ellipsoid every cumulus is built on: flat base, rounded crown. Centre of its base, and radii. */
 export function domeOf(c: CloudSpec): { c: [number, number, number]; r: [number, number, number] } {
-  return { c: [c.x, c.y, c.z], r: [c.width * 0.44, c.height * 0.74, c.depth * 0.42] };
+  const k = c.core ?? 1;
+  return { c: [c.x, c.y, c.z], r: [c.width * 0.44 * k, c.height * 0.74 * k, c.depth * 0.42 * k] };
 }
 
 /** How far into the cloud's soft mass a point is: 0 outside, toward 1 at its core. Matches the shader. */
 export function lumpField(lumps: readonly Lump[], spec: CloudSpec, x: number, y: number, z: number): number {
   const dome = domeOf(spec);
-  const narrow = 1 - TAPER * Math.min(1, Math.max(0, (y - dome.c[1]) / dome.r[1]));
+  const narrow = 1 - taperOf(spec) * Math.min(1, Math.max(0, (y - dome.c[1]) / dome.r[1]));
   let sum = Math.exp(BLEND * (1 - Math.hypot((x - dome.c[0]) / (dome.r[0] * narrow), (y - dome.c[1]) / dome.r[1], (z - dome.c[2]) / (dome.r[2] * narrow))));
   for (const l of lumps) sum += Math.exp(BLEND * (1 - Math.hypot(x - l.x, y - l.y, z - l.z) / l.r));
   const s = Math.max(Math.log(Math.max(sum, 1e-6)) / BLEND, 0);

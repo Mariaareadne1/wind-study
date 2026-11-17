@@ -1,6 +1,7 @@
 import { portfolioClimb, portfolioFramingFor, portfolioHeight } from './portfolio';
 import { framingFor, hillsFramingFor, sunlitFramingFor, type Framing } from './framing';
 import type { CloudSpec } from './cloudShape';
+import type { CloudStyle } from './Clouds';
 import { HILL_PATCHES, PATCHES, SUN, SUNLIT_PATCHES, type FieldPatch } from './paint';
 import { hillsClimb, hillsHeight, meadowHeight, sunlitClimb, sunlitHeight, type HeightFn } from './terrain';
 
@@ -72,6 +73,7 @@ export interface SceneProfile {
   cloudSun?: readonly [number, number, number];
   /** Light the clouds' own forms are modelled by: a little in front, so their billows read. */
   cloudKey?: readonly [number, number, number];
+  cloudStyle?: CloudStyle;
   flowers?: { flowers: number; seedHeads: number };
   /** The land's general slope without its waves, so wave fronts can be told from the climb. */
   baseline?: (z: number) => number;
@@ -177,7 +179,16 @@ export const PORTFOLIO: SceneProfile = {
   canopy: 0.4,
   // olive rather than lime: the reference's greens sit only a little above their reds, with real blue in them
   realistic: { ...SUNLIT.realistic!, sunColor: [2.9, 2.55, 1.75], finish: { ...SUNLIT.realistic!.finish, saturation: 0.76, exposure: 1.1 } },
-  clouds: [],
+  // softer and less bright than Sunlit's: feathered rims, and whites that keep their modelling
+  // modelled from the upper left, as the reference's are: each head keeps a grey crease on its lower right
+  cloudKey: normalize([-0.6, 0.62, 0.3]),
+  cloudStyle: { gain: 0.42, ambient: 0.8, edge: 5, fray: 0.07, billows: 14 },
+  // placed from the reference's layout at 16:9: large upper middle, broad middle right, small lower middle
+  clouds: [
+    { x: 1.6, y: 9, z: -5.4, width: 22, depth: 7, height: 6.6, seed: 41, taper: 0.55, core: 0.9 },
+    { x: 11.2, y: 6.1, z: 3, width: 20, depth: 6.4, height: 6.2, seed: 53, taper: 0.55, core: 0.9 },
+    { x: -0.4, y: 6, z: 6.9, width: 7, depth: 2.8, height: 2.8, seed: 67, taper: 0.45, core: 0.85 },
+  ],
 };
 
 export function profileFor(id: string | null): SceneProfile {

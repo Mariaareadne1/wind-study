@@ -210,7 +210,7 @@ export class WindApp {
     const light = this.profile.realistic;
     if (!specs?.length || !light) return;
     const sun = this.profile.cloudSun ?? this.profile.sun;
-    this.clouds = new Clouds(specs, { sun: this.profile.cloudKey ?? sun, sunColor: light.sunColor, skyColor: light.skyColor, groundColor: light.groundColor ?? [0.3, 0.36, 0.16] }, this.cloudOffset);
+    this.clouds = new Clouds(specs, { sun: this.profile.cloudKey ?? sun, sunColor: light.sunColor, skyColor: light.skyColor, groundColor: light.groundColor ?? [0.3, 0.36, 0.16] }, this.cloudOffset, this.profile.cloudStyle);
     // the grass reads shadows through the 0.42-unit flow grid, so about a third of a unit here is plenty
     const res = [228, 156] as const;
     this.shadowTex = makeShadowTexture(bakeCloudShadow(this.clouds.shapes, this.terrain, sun, FIELD, res[0], res[1]), res[0], res[1]);
